@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ethers } from "ethers";
+import { ethers, Wallet } from "ethers";
 import { getConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { getBalance } from "@/lib/trade-client";
@@ -15,7 +15,8 @@ export async function GET() {
       const provider = new ethers.providers.JsonRpcProvider(
         config.api.polygonRpcUrl,
       );
-      const wei = await provider.getBalance(config.api.funderAddress);
+      const signerAddress = new Wallet(config.api.privateKey).address;
+      const wei = await provider.getBalance(signerAddress);
       return Number.parseFloat(ethers.utils.formatEther(wei));
     })(),
   ]);
