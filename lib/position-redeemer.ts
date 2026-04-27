@@ -8,6 +8,8 @@ import { logger } from "./logger";
 const CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045";
 const NEGRISK_ADAPTER_ADDRESS = "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296";
 const USDC_NATIVE_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
+// V2 CTF positions are still denominated in USDC.e (bridged USDC).
+// pUSD is only a wrapper at the exchange layer, not a CTF collateralToken.
 const USDC_BRIDGED_ADDRESS = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174";
 const WRAPPED_COLLATERAL_ADDRESS = "0x3A3BD7bb9528E159577F7C2e685CC81A765002E2";
 
@@ -201,7 +203,7 @@ export class PositionRedeemer {
       2,
     );
 
-    // Check bridged USDC first
+    // Check bridged USDC first (covers both V1 and V2 non-negrisk positions)
     let yesPositionId = await this.ctfContract.getPositionId(
       USDC_BRIDGED_ADDRESS,
       yesCollectionId,

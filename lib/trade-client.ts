@@ -1,9 +1,10 @@
 import {
   AssetType,
+  Chain,
   ClobClient,
   OrderType,
   Side,
-} from "@polymarket/clob-client";
+} from "@polymarket/clob-client-v2";
 import { Wallet } from "ethers";
 import { getConfig } from "./config";
 import { logger } from "./logger";
@@ -17,23 +18,27 @@ async function getClobClient(): Promise<ClobClient> {
   const config = getConfig();
   const wallet = new Wallet(config.api.privateKey);
   const host = config.api.clobApiUrl;
-  const chainId = 137;
+  const chain = Chain.POLYGON;
 
-  const rawCreds = await new ClobClient(host, chainId, wallet).deriveApiKey();
+  const rawCreds = await new ClobClient({
+    host,
+    chain,
+    signer: wallet,
+  }).createOrDeriveApiKey();
   const apiCreds = {
     key: rawCreds.key,
     secret: rawCreds.secret.replace(/-/g, "+").replace(/_/g, "/"),
     passphrase: rawCreds.passphrase,
   };
 
-  clobClient = new ClobClient(
+  clobClient = new ClobClient({
     host,
-    chainId,
-    wallet,
-    apiCreds,
-    2, // signatureType
-    config.api.funderAddress,
-  );
+    chain,
+    signer: wallet,
+    creds: apiCreds,
+    signatureType: 2, // POLY_GNOSIS_SAFE
+    funderAddress: config.api.funderAddress,
+  });
 
   return clobClient;
 }
@@ -137,8 +142,11 @@ export async function executeTrade(
         tokenID: noTokenId,
         price: roundedMaxPrice,
         amount,
+        // V2 fees are operator-set at match time and charged on top of `amount`
+        // unless `userUSDCBalance` is provided. Pass the budget so the SDK
+        // shrinks the order to fit fees and avoids insufficient-balance reverts.
+        userUSDCBalance: amount,
         side: Side.BUY,
-        feeRateBps: 0,
         orderType: OrderType.FAK,
       },
       undefined,
@@ -150,13 +158,18 @@ export async function executeTrade(
       return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
     }
 
-    const totalCost = amount;
-    const sharesBought = totalCost / roundedMaxPrice;
+    const filledUsdc = Number.parseFloat(result.makingAmount ?? "0");
+    const filledShares = Number.parseFloat(result.takingAmount ?? "0");
+    const totalCost = filledUsdc > 0 ? filledUsdc : amount;
+    const sharesBought =
+      filledShares > 0 ? filledShares : totalCost / roundedMaxPrice;
+    const avgPrice =
+      sharesBought > 0 ? totalCost / sharesBought : roundedMaxPrice;
 
     return {
       success: true,
       sharesBought,
-      avgPrice: roundedMaxPrice,
+      avgPrice,
       totalCost,
     };
   } catch (err) {
