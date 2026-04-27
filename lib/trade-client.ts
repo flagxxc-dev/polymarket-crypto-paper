@@ -158,18 +158,18 @@ export async function executeTrade(
       return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
     }
 
-    const filledUsdc = Number.parseFloat(result.makingAmount ?? "0");
-    const filledShares = Number.parseFloat(result.takingAmount ?? "0");
-    const totalCost = filledUsdc > 0 ? filledUsdc : amount;
-    const sharesBought =
-      filledShares > 0 ? filledShares : totalCost / roundedMaxPrice;
-    const avgPrice =
-      sharesBought > 0 ? totalCost / sharesBought : roundedMaxPrice;
+    const totalCost = Number.parseFloat(result.makingAmount ?? "0");
+    const sharesBought = Number.parseFloat(result.takingAmount ?? "0");
+
+    if (sharesBought <= 0 || totalCost <= 0) {
+      logger.error(`[Trade] FAK order zero-filled: ${JSON.stringify(result)}`);
+      return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
+    }
 
     return {
       success: true,
       sharesBought,
-      avgPrice,
+      avgPrice: totalCost / sharesBought,
       totalCost,
     };
   } catch (err) {
