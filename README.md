@@ -88,7 +88,6 @@ To execute trades, you need to configure your Polymarket wallet.
 # Wallet credentials (required for trading)
 POLYGON_PRIVATE_KEY=your_wallet_private_key
 POLYMARKET_FUNDER_ADDRESS=your_polymarket_proxy_wallet_address
-POLYGON_RPC_URL=https://polygon-rpc.com
 
 # Auth password for trading
 TRADE_PASSWORD=your_secure_password

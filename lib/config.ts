@@ -21,7 +21,6 @@ export interface Config {
   api: {
     gammaApiUrl: string;
     clobApiUrl: string;
-    polygonRpcUrl: string;
     privateKey: string;
     funderAddress: string;
   };
@@ -48,7 +47,6 @@ export function getConfig(): Config {
       gammaApiUrl:
         fileConfig.api?.gammaApiUrl || "https://gamma-api.polymarket.com",
       clobApiUrl: fileConfig.api?.clobApiUrl || "https://clob.polymarket.com",
-      polygonRpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
       privateKey: process.env.POLYGON_PRIVATE_KEY || "",
       funderAddress: process.env.POLYMARKET_FUNDER_ADDRESS || "",
     },
