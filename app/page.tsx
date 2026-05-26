@@ -325,10 +325,14 @@ export default function Home() {
                   </p>
                   <Button
                     type="button"
-                    variant={showAdvanced ? "secondary" : "outline"}
+                    variant="ghost"
                     size="sm"
                     onClick={() => setShowAdvanced((v) => !v)}
-                    className="h-7 gap-1 px-2 text-xs"
+                    className={`h-7 gap-1 px-2 text-xs ${
+                      showAdvanced
+                        ? "border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+                        : "text-muted-foreground"
+                    }`}
                   >
                     <Settings size={14} />
                     Advanced
