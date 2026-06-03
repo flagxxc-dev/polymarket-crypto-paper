@@ -10,8 +10,6 @@ import { getConfig } from "./config";
 import { logger } from "./logger";
 import { Orderbook, SellPreview, OpenOrderView } from "./types";
 
-export { slippageCeiling, BUY_SLIPPAGE_BUFFER } from "./pricing";
-
 let clobClient: ClobClient | null = null;
 
 async function getClobClient(): Promise<ClobClient> {

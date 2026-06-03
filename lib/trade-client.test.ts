@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import {
   calculateSellPreview,
   calculateExecutionPreview,
-  slippageCeiling,
 } from "./trade-client";
 import { Orderbook } from "./types";
 
@@ -81,21 +80,17 @@ describe("calculateExecutionPreview", () => {
     expect(r.bestAsk).toBeCloseTo(0.986, 6);
   });
 
-  it("fills when the limit clears the best ask", () => {
-    const r = calculateExecutionPreview(askBook([[0.984, 100]]), 0.99, 30, 50);
-    expect(r.bestAsk).toBeCloseTo(0.984, 6);
+  it("fills exactly at the best ask (the price the user pays)", () => {
+    const r = calculateExecutionPreview(askBook([[0.993, 100]]), 0.993, 30, 50);
+    expect(r.bestAsk).toBeCloseTo(0.993, 6);
     expect(r.shares).toBeGreaterThan(0);
-    expect(r.avgPrice).toBeCloseTo(0.984, 6);
-  });
-});
-
-describe("slippageCeiling", () => {
-  it("adds headroom above the best ask", () => {
-    expect(slippageCeiling(0.5)).toBeCloseTo(0.51, 6);
+    expect(r.avgPrice).toBeCloseTo(0.993, 6);
   });
 
-  it("clamps to the 0.99 max valid price", () => {
-    expect(slippageCeiling(0.984)).toBe(0.99);
-    expect(slippageCeiling(0.99)).toBe(0.99);
+  it("reports 0 shares but the live ask when the limit is one tick too low", () => {
+    // User lowered the limit to 0.992 while the live ask is 0.993.
+    const r = calculateExecutionPreview(askBook([[0.993, 100]]), 0.992, 30);
+    expect(r.shares).toBe(0);
+    expect(r.bestAsk).toBeCloseTo(0.993, 6);
   });
 });

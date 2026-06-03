@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { ExecutionPreview } from "@/lib/trade-client";
-import { slippageCeiling } from "@/lib/pricing";
 import { BracketOpportunity } from "@/lib/types";
 import { useEffect, useRef, useState } from "react";
 
@@ -38,11 +37,12 @@ export default function ApproveModal({
   onClose,
   onSuccess,
 }: Props) {
+  // Price = the max we'll pay, defaulted to the current best ask. We start from
+  // the (possibly stale) scan-time ask, then seed it to the LIVE best ask once
+  // the first preview lands. The ref locks auto-seeding once it has happened or
+  // the user has taken control of the field, so we never override their input.
   const [maxPrice, setMaxPrice] = useState(bracket.currentNoPrice.toFixed(3));
-  const [priceEdited, setPriceEdited] = useState(false);
-  // Seed the limit from the LIVE best ask (+ buffer) exactly once. The initial
-  // value above is the stale scan-time ask, which is often already too tight.
-  const seededPriceRef = useRef(false);
+  const priceSeededRef = useRef(false);
   const [maxAmount, setMaxAmount] = useState<string>("");
   const [maxAmountEdited, setMaxAmountEdited] = useState(false);
   const [preview, setPreview] = useState<ExecutionPreview | null>(null);
@@ -71,15 +71,11 @@ export default function ApproveModal({
         const res = await fetch(url);
         const data = await res.json();
         setPreview(data.preview);
-        // Seed the limit from the live best ask (+ slippage buffer) once, so a
-        // drift between scan and open doesn't leave the order non-marketable.
-        if (
-          !priceEdited &&
-          !seededPriceRef.current &&
-          data.preview?.bestAsk != null
-        ) {
-          seededPriceRef.current = true;
-          setMaxPrice(slippageCeiling(data.preview.bestAsk).toFixed(3));
+        // Seed the limit to the LIVE best ask once, so it opens at the real
+        // price to pay instead of a stale scan value that may sit below it.
+        if (!priceSeededRef.current && data.preview?.bestAsk != null) {
+          priceSeededRef.current = true;
+          setMaxPrice(data.preview.bestAsk.toFixed(3));
         }
         // Show available amount in input (without triggering edited state)
         if (!maxAmountEdited && data.preview?.totalCost) {
@@ -99,10 +95,19 @@ export default function ApproveModal({
     bracket.noTokenId,
     daysToExpiry,
     maxAmountEdited,
-    priceEdited,
   ]);
 
   const handleExecute = async () => {
+    const parsedPrice = Number.parseFloat(maxPrice);
+    const parsedAmount = maxAmount ? Number.parseFloat(maxAmount) : NaN;
+    if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
+      setResult({ success: false, message: "Enter a valid max price" });
+      return;
+    }
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setResult({ success: false, message: "Enter a valid amount ($)" });
+      return;
+    }
     setExecuting(true);
     setResult(null);
     try {
@@ -113,8 +118,8 @@ export default function ApproveModal({
           marketId: bracket.marketId,
           noTokenId: bracket.noTokenId,
           strikePrice: bracket.strikePrice,
-          maxPrice: Number.parseFloat(maxPrice),
-          maxAmount: maxAmount ? Number.parseFloat(maxAmount) : undefined,
+          maxPrice: parsedPrice,
+          maxAmount: parsedAmount,
         }),
       });
       if (res.status === 401) {
@@ -182,13 +187,13 @@ export default function ApproveModal({
               <label className="text-sm text-muted-foreground">Price</label>
               <Input
                 type="number"
-                step="0.01"
+                step="0.001"
                 min="0.01"
-                max="0.99"
+                max="0.999"
                 value={maxPrice}
                 onChange={(e) => {
+                  priceSeededRef.current = true;
                   setMaxPrice(e.target.value);
-                  setPriceEdited(true);
                 }}
                 className="font-mono"
               />
@@ -227,11 +232,11 @@ export default function ApproveModal({
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setMaxPrice(slippageCeiling(preview.bestAsk!).toFixed(3));
-                      setPriceEdited(true);
+                      priceSeededRef.current = true;
+                      setMaxPrice(preview.bestAsk!.toFixed(3));
                     }}
                   >
-                    Raise to ${slippageCeiling(preview.bestAsk).toFixed(3)}
+                    Raise to ${preview.bestAsk.toFixed(3)}
                   </Button>
                 </>
               ) : (
@@ -327,10 +332,16 @@ export default function ApproveModal({
             {!result?.success && (
               <Button
                 onClick={handleExecute}
-                disabled={executing || !preview || preview.shares === 0}
+                disabled={
+                  executing || !preview || preview.shares === 0 || balance <= 0
+                }
                 className="flex-1 bg-primary text-primary-foreground"
               >
-                {executing ? "Executing..." : "Execute"}
+                {executing
+                  ? "Executing..."
+                  : balance <= 0
+                    ? "No balance"
+                    : "Execute"}
               </Button>
             )}
           </div>
