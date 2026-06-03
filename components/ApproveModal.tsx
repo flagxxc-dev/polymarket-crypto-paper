@@ -8,9 +8,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { ExecutionPreview } from "@/lib/trade-client";
+import type { ExecutionPreview } from "@/lib/trade-client";
+import { slippageCeiling } from "@/lib/pricing";
 import { BracketOpportunity } from "@/lib/types";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   bracket: BracketOpportunity;
@@ -38,6 +39,10 @@ export default function ApproveModal({
   onSuccess,
 }: Props) {
   const [maxPrice, setMaxPrice] = useState(bracket.currentNoPrice.toFixed(3));
+  const [priceEdited, setPriceEdited] = useState(false);
+  // Seed the limit from the LIVE best ask (+ buffer) exactly once. The initial
+  // value above is the stale scan-time ask, which is often already too tight.
+  const seededPriceRef = useRef(false);
   const [maxAmount, setMaxAmount] = useState<string>("");
   const [maxAmountEdited, setMaxAmountEdited] = useState(false);
   const [preview, setPreview] = useState<ExecutionPreview | null>(null);
@@ -66,6 +71,16 @@ export default function ApproveModal({
         const res = await fetch(url);
         const data = await res.json();
         setPreview(data.preview);
+        // Seed the limit from the live best ask (+ slippage buffer) once, so a
+        // drift between scan and open doesn't leave the order non-marketable.
+        if (
+          !priceEdited &&
+          !seededPriceRef.current &&
+          data.preview?.bestAsk != null
+        ) {
+          seededPriceRef.current = true;
+          setMaxPrice(slippageCeiling(data.preview.bestAsk).toFixed(3));
+        }
         // Show available amount in input (without triggering edited state)
         if (!maxAmountEdited && data.preview?.totalCost) {
           setMaxAmount(data.preview.totalCost.toFixed(2));
@@ -84,6 +99,7 @@ export default function ApproveModal({
     bracket.noTokenId,
     daysToExpiry,
     maxAmountEdited,
+    priceEdited,
   ]);
 
   const handleExecute = async () => {
@@ -119,7 +135,9 @@ export default function ApproveModal({
       } else {
         setResult({
           success: false,
-          message: "Trade failed - no shares bought",
+          message: data.error
+            ? `Trade failed: ${data.error}`
+            : "Trade failed - no shares bought",
         });
       }
     } catch (err) {
@@ -168,7 +186,10 @@ export default function ApproveModal({
                 min="0.01"
                 max="0.99"
                 value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
+                onChange={(e) => {
+                  setMaxPrice(e.target.value);
+                  setPriceEdited(true);
+                }}
                 className="font-mono"
               />
             </div>
@@ -194,6 +215,29 @@ export default function ApproveModal({
             <p className="text-sm text-muted-foreground text-center py-4">
               Loading...
             </p>
+          ) : preview && preview.shares === 0 ? (
+            <div className="p-3 rounded-lg text-sm bg-amber-500/15 text-amber-400 space-y-2">
+              {preview.bestAsk != null ? (
+                <>
+                  <p>
+                    No shares fillable at max ${Number(maxPrice).toFixed(3)} —
+                    the current best ask is ${preview.bestAsk.toFixed(3)}.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMaxPrice(slippageCeiling(preview.bestAsk!).toFixed(3));
+                      setPriceEdited(true);
+                    }}
+                  >
+                    Raise to ${slippageCeiling(preview.bestAsk).toFixed(3)}
+                  </Button>
+                </>
+              ) : (
+                <p>No liquidity available in the order book right now.</p>
+              )}
+            </div>
           ) : preview ? (
             <>
               <div className="grid grid-cols-2 gap-3">

@@ -10,6 +10,8 @@ import { getConfig } from "./config";
 import { logger } from "./logger";
 import { Orderbook, SellPreview, OpenOrderView } from "./types";
 
+export { slippageCeiling, BUY_SLIPPAGE_BUFFER } from "./pricing";
+
 let clobClient: ClobClient | null = null;
 
 async function getClobClient(): Promise<ClobClient> {
@@ -75,6 +77,19 @@ export interface ExecutionPreview {
   avgPrice: number;
   apy: number;
   profit: number;
+  // Lowest purchasable ask in the LIVE book, regardless of maxPrice. Lets the
+  // UI explain "0 shares" (limit below ask) and seed a sane default ceiling.
+  bestAsk: number | null;
+}
+
+function lowestPurchasableAsk(
+  asks: { price: number; size: number }[],
+): number | null {
+  // Mirror scanner.getBestAsk: first level with >= 1 share or >= $1 notional.
+  for (const ask of asks) {
+    if (ask.size >= 1 || ask.price * ask.size >= 1) return ask.price;
+  }
+  return asks[0]?.price ?? null;
 }
 
 export function calculateExecutionPreview(
@@ -83,13 +98,17 @@ export function calculateExecutionPreview(
   daysToExpiry: number,
   maxAmount?: number,
 ): ExecutionPreview {
-  const asks = orderbook.asks
+  const allAsks = orderbook.asks
     .map((a) => ({
       price: Number.parseFloat(a.price),
       size: Number.parseFloat(a.size),
     }))
-    .filter((a) => a.price <= maxPrice)
+    .filter((a) => !isNaN(a.price) && !isNaN(a.size))
     .sort((a, b) => a.price - b.price);
+
+  const bestAsk = lowestPurchasableAsk(allAsks);
+
+  const asks = allAsks.filter((a) => a.price <= maxPrice);
 
   let shares = 0;
   let totalCost = 0;
@@ -120,7 +139,7 @@ export function calculateExecutionPreview(
       ? (yieldPerShare / avgPrice) * (365 / daysToExpiry) * 100
       : 0;
 
-  return { shares, totalCost, avgPrice, apy, profit };
+  return { shares, totalCost, avgPrice, apy, profit, bestAsk };
 }
 
 export function calculateSellPreview(
@@ -161,6 +180,7 @@ export async function executeTrade(
   sharesBought: number;
   avgPrice: number;
   totalCost: number;
+  error?: string;
 }> {
   const client = await getClobClient();
   const roundedMaxPrice = maxPrice;
@@ -184,7 +204,17 @@ export async function executeTrade(
 
     if (!result?.success) {
       logger.error(`[Trade] FAK order rejected: ${JSON.stringify(result)}`);
-      return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
+      const reason =
+        (result as { errorMsg?: string; error?: string })?.errorMsg ??
+        (result as { error?: string })?.error ??
+        "order rejected by exchange";
+      return {
+        success: false,
+        sharesBought: 0,
+        avgPrice: 0,
+        totalCost: 0,
+        error: reason,
+      };
     }
 
     const totalCost = Number.parseFloat(result.makingAmount ?? "0");
@@ -192,7 +222,14 @@ export async function executeTrade(
 
     if (sharesBought <= 0 || totalCost <= 0) {
       logger.error(`[Trade] FAK order zero-filled: ${JSON.stringify(result)}`);
-      return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
+      return {
+        success: false,
+        sharesBought: 0,
+        avgPrice: 0,
+        totalCost: 0,
+        error:
+          "order matched nothing — your max price may be below the best ask, or there is no liquidity",
+      };
     }
 
     return {
@@ -203,7 +240,13 @@ export async function executeTrade(
     };
   } catch (err) {
     logger.error(`[Trade] FAK order failed: ${err}`);
-    return { success: false, sharesBought: 0, avgPrice: 0, totalCost: 0 };
+    return {
+      success: false,
+      sharesBought: 0,
+      avgPrice: 0,
+      totalCost: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 

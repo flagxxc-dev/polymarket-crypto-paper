@@ -53,7 +53,7 @@ export async function POST(request: Request) {
         `[Trade] Success: ${result.sharesBought.toFixed(2)} shares @ $${result.avgPrice.toFixed(3)} = $${result.totalCost.toFixed(2)}`,
       );
     } else {
-      logger.info("[Trade] Failed: No shares bought");
+      logger.info(`[Trade] Failed: ${result.error ?? "No shares bought"}`);
     }
 
     return NextResponse.json(result);

@@ -1,10 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { calculateSellPreview } from "./trade-client";
+import {
+  calculateSellPreview,
+  calculateExecutionPreview,
+  slippageCeiling,
+} from "./trade-client";
 import { Orderbook } from "./types";
 
 const book = (bids: [number, number][]): Orderbook => ({
   asks: [],
   bids: bids.map(([price, size]) => ({
+    price: String(price),
+    size: String(size),
+  })),
+});
+
+const askBook = (asks: [number, number][]): Orderbook => ({
+  bids: [],
+  asks: asks.map(([price, size]) => ({
     price: String(price),
     size: String(size),
   })),
@@ -55,5 +67,35 @@ describe("calculateSellPreview", () => {
     const r = calculateSellPreview(book([[0.9, 30]]), 100);
     expect(r.fillableShares).toBe(30);
     expect(r.proceeds).toBeCloseTo(27, 6);
+  });
+});
+
+describe("calculateExecutionPreview", () => {
+  it("reports the live best ask even when the limit excludes every ask", () => {
+    // The bug: best ask drifted up to 0.986 but the user's max price is the
+    // stale 0.984. Preview yields 0 shares yet must surface the real ask so the
+    // UI can explain it instead of silently disabling the button.
+    const r = calculateExecutionPreview(askBook([[0.986, 100]]), 0.984, 30);
+    expect(r.shares).toBe(0);
+    expect(r.totalCost).toBe(0);
+    expect(r.bestAsk).toBeCloseTo(0.986, 6);
+  });
+
+  it("fills when the limit clears the best ask", () => {
+    const r = calculateExecutionPreview(askBook([[0.984, 100]]), 0.99, 30, 50);
+    expect(r.bestAsk).toBeCloseTo(0.984, 6);
+    expect(r.shares).toBeGreaterThan(0);
+    expect(r.avgPrice).toBeCloseTo(0.984, 6);
+  });
+});
+
+describe("slippageCeiling", () => {
+  it("adds headroom above the best ask", () => {
+    expect(slippageCeiling(0.5)).toBeCloseTo(0.51, 6);
+  });
+
+  it("clamps to the 0.99 max valid price", () => {
+    expect(slippageCeiling(0.984)).toBe(0.99);
+    expect(slippageCeiling(0.99)).toBe(0.99);
   });
 });
