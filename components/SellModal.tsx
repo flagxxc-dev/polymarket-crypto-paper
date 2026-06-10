@@ -20,6 +20,11 @@ interface Props {
 
 type Mode = "market" | "limit";
 
+const MODE_LABELS: Record<Mode, string> = {
+  market: "市价",
+  limit: "限价",
+};
+
 export default function SellModal({
   position,
   sellableSize,
@@ -120,7 +125,7 @@ export default function SellModal({
       if (res.status === 401) {
         setResult({
           success: false,
-          message: "Not authenticated - please login",
+          message: "未登录，请先登录",
         });
         setExecuting(false);
         return;
@@ -129,22 +134,22 @@ export default function SellModal({
       if (data.success && mode === "market") {
         setResult({
           success: true,
-          message: `Sold ${data.sharesSold.toFixed(2)} shares for $${data.proceeds.toFixed(2)} ($${data.avgPrice.toFixed(3)} avg)`,
+          message: `已卖出 ${data.sharesSold.toFixed(2)} 股，收入 $${data.proceeds.toFixed(2)}（均价 $${data.avgPrice.toFixed(3)}）`,
         });
         onSuccess();
       } else if (data.success && mode === "limit") {
-        setResult({ success: true, message: "Limit order placed" });
+        setResult({ success: true, message: "限价单已提交" });
         onSuccess();
       } else {
         setResult({
           success: false,
-          message: data.error || "Sell failed - no shares sold",
+          message: data.error || "卖出失败 — 未卖出任何股份",
         });
       }
     } catch (err) {
       setResult({
         success: false,
-        message: `Error: ${err instanceof Error ? err.message : "Unknown"}`,
+        message: `错误：${err instanceof Error ? err.message : "未知错误"}`,
       });
     }
     setExecuting(false);
@@ -154,14 +159,14 @@ export default function SellModal({
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Sell Position</DialogTitle>
+          <DialogTitle>卖出持仓</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div>
             <p className="text-sm font-medium">{position.title}</p>
             <p className="text-xs text-muted-foreground">
-              {position.outcome} · {sellableSize.toFixed(2)} sellable · now $
+              {position.outcome} · 可卖 {sellableSize.toFixed(2)} · 现价 $
               {position.curPrice.toFixed(3)}
             </p>
           </div>
@@ -175,7 +180,7 @@ export default function SellModal({
                 onClick={() => setMode(m)}
                 className="capitalize"
               >
-                {m}
+                {MODE_LABELS[m]}
               </Button>
             ))}
           </div>
@@ -183,7 +188,7 @@ export default function SellModal({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-sm text-muted-foreground flex items-center justify-between">
-                <span>Quantity</span>
+                <span>数量</span>
                 <Button
                   type="button"
                   variant="link"
@@ -191,7 +196,7 @@ export default function SellModal({
                   className="h-auto p-0 text-xs"
                   onClick={() => setQuantity(String(sellableSize))}
                 >
-                  Max
+                  全部
                 </Button>
               </label>
               <Input
@@ -206,7 +211,7 @@ export default function SellModal({
             </div>
             <div className="space-y-2">
               <label className="text-sm text-muted-foreground">
-                {mode === "market" ? "Min price" : "Limit price"}
+                {mode === "market" ? "最低价格" : "限价"}
               </label>
               <Input
                 type="number"
@@ -222,26 +227,26 @@ export default function SellModal({
 
           {!qtyValid && (
             <p className="text-xs text-red-400">
-              Quantity must be between 0 and {sellableSize.toFixed(2)}.
+              数量须在 0 到 {sellableSize.toFixed(2)} 之间。
             </p>
           )}
 
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Loading...
+              加载中...
             </p>
           ) : displayPreview ? (
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 bg-secondary/50 rounded">
                 <p className="text-xs text-muted-foreground">
-                  {mode === "market" ? "You'll receive ≈" : "If filled"}
+                  {mode === "market" ? "预计收入 ≈" : "若成交"}
                 </p>
                 <p className="font-mono text-primary">
                   ${displayPreview.proceeds.toFixed(2)}
                 </p>
               </div>
               <div className="p-3 bg-secondary/50 rounded">
-                <p className="text-xs text-muted-foreground">Avg price</p>
+                <p className="text-xs text-muted-foreground">均价</p>
                 <p className="font-mono">
                   ${displayPreview.avgPrice.toFixed(3)}
                 </p>
@@ -251,8 +256,8 @@ export default function SellModal({
 
           {partialFill && (
             <p className="text-xs text-yellow-400">
-              Only {displayPreview!.fillableShares.toFixed(2)} shares fill at ≥
-              ${priceNum.toFixed(3)}. Lower the min price to fill more.
+              仅 {displayPreview!.fillableShares.toFixed(2)} 股可在 ≥
+              ${priceNum.toFixed(3)} 成交。降低最低价格可成交更多。
             </p>
           )}
 
@@ -270,7 +275,7 @@ export default function SellModal({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1">
-              {result?.success ? "Close" : "Cancel"}
+              {result?.success ? "关闭" : "取消"}
             </Button>
             {!result?.success && (
               <Button
@@ -284,13 +289,13 @@ export default function SellModal({
                 }
                 className="flex-1 bg-primary text-primary-foreground"
               >
-                {executing ? "Selling..." : "Sell"}
+                {executing ? "卖出中..." : "卖出"}
               </Button>
             )}
           </div>
           {bestBid != null && (
             <p className="text-[10px] text-muted-foreground text-center">
-              Best bid ${bestBid.toFixed(3)}
+              最高买价 ${bestBid.toFixed(3)}
             </p>
           )}
         </div>

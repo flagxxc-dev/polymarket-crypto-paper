@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { loadOpportunities, isRejected } from "@/lib/persistence";
+import { isStockScannerEnabled } from "@/lib/security";
 
 export async function GET() {
+  if (!isStockScannerEnabled()) {
+    return NextResponse.json([]);
+  }
+
   const opportunities = loadOpportunities();
 
   const filtered = opportunities

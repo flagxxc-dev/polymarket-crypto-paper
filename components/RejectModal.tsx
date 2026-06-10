@@ -35,7 +35,7 @@ export default function RejectModal({ bracket, onClose, onSuccess }: Props) {
       onSuccess();
       onClose();
     } catch {
-      alert("Failed");
+      alert("操作失败");
     }
     setSubmitting(false);
   };
@@ -44,7 +44,7 @@ export default function RejectModal({ bracket, onClose, onSuccess }: Props) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Skip Opportunity</DialogTitle>
+          <DialogTitle>跳过机会</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -59,9 +59,9 @@ export default function RejectModal({ bracket, onClose, onSuccess }: Props) {
                   : "border-border bg-secondary/30 hover:bg-secondary/50"
               }`}
             >
-              <p className="font-medium">Snooze (24h)</p>
+              <p className="font-medium">稍后提醒 (24h)</p>
               <p className="text-xs text-muted-foreground">
-                Will reappear after 24 hours
+                24 小时后重新显示
               </p>
             </button>
             <button
@@ -72,16 +72,16 @@ export default function RejectModal({ bracket, onClose, onSuccess }: Props) {
                   : "border-border bg-secondary/30 hover:bg-secondary/50"
               }`}
             >
-              <p className="font-medium">Dismiss Forever</p>
+              <p className="font-medium">永久忽略</p>
               <p className="text-xs text-muted-foreground">
-                Permanently hide this
+                不再显示此机会
               </p>
             </button>
           </div>
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1">
-              Cancel
+              取消
             </Button>
             <Button
               onClick={handleReject}
@@ -89,10 +89,10 @@ export default function RejectModal({ bracket, onClose, onSuccess }: Props) {
               className={`flex-1 ${type === "hard" ? "bg-destructive text-white" : "bg-primary text-primary-foreground"}`}
             >
               {submitting
-                ? "Skipping..."
+                ? "处理中..."
                 : type === "hard"
-                  ? "Dismiss"
-                  : "Snooze"}
+                  ? "永久忽略"
+                  : "稍后提醒"}
             </Button>
           </div>
         </div>

@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    image: polymarket-stocks-hedging
+    container_name: polymarket-stocks-hedging
+    network_mode: service:vpn
+    depends_on:
+      - vpn
+    env_file:
+      - .env
+    volumes:
+      - ${CONFIG_PATH:-./config}:/app/config:ro
+      - ${DATA_PATH:-./data}:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/auth"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  vpn:
+    image: dperson/openvpn-client
+    container_name: polymarket-stocks-hedging-vpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    ports:
+      - "${APP_PORT:-50003}:3000"
+    volumes:
+      - ${VPN_PATH:-./vpn}:/vpn
+    restart: unless-stopped
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0

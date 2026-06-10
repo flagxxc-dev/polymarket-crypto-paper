@@ -1,13 +1,15 @@
 {
-  "stocks": ["GOOGL", "AMZN"],
+  "_comment": "股票对冲扫描已停用，仅保留结构供参考",
+  "stocks": [],
   "opportunities": {
     "opportunityAPY": 25,
     "minDisplayAPY": 8,
     "minDeltaPercent": 7,
-    "slugPatterns": ["{ticker}-above-on-*", "what-price-will-{ticker}-hit-*"]
+    "slugPatterns": []
   },
   "scanner": {
-    "intervalMinutes": 5
+    "intervalMinutes": 5,
+    "enabled": false
   },
   "rejections": {
     "softRejectHours": 24

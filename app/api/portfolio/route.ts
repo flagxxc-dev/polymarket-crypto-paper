@@ -3,6 +3,7 @@ import axios from "axios";
 import { getConfig } from "@/lib/config";
 import { logger } from "@/lib/logger";
 import { getBalance } from "@/lib/trade-client";
+import { assertLiveTradingEnabled } from "@/lib/security";
 
 interface PolymarketPosition {
   currentValue: number;
@@ -20,6 +21,9 @@ interface PolymarketPosition {
 }
 
 export async function GET() {
+  const blocked = assertLiveTradingEnabled();
+  if (blocked) return blocked;
+
   const config = getConfig();
 
   try {

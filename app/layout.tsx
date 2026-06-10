@@ -15,8 +15,8 @@ const outfit = Outfit({
 });
 
 export const metadata = {
-  title: "Polymarket Opportunities",
-  description: "Find and trade market opportunities",
+  title: "Polymarket BTC/ETH 5分钟模拟盘",
+  description: "Polymarket 短周期涨跌模拟练习，真实盘口、本地虚拟资金",
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
@@ -29,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${jetbrainsMono.variable} ${outfit.variable}`}>
+    <html lang="zh-CN" className={`${jetbrainsMono.variable} ${outfit.variable}`}>
       <body>
         <Providers>{children}</Providers>
       </body>

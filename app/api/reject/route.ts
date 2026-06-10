@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const authCookie = cookieStore.get(AUTH_COOKIE);
     if (authCookie?.value !== "authenticated") {
       return NextResponse.json(
-        { error: "Authentication required in readonly mode" },
+        { error: "只读模式下需要登录" },
         { status: 401 },
       );
     }
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
 
   if (!marketId || strikePrice === undefined || !type) {
     return NextResponse.json(
-      { error: "Missing required fields" },
+      { error: "缺少必填字段" },
       { status: 400 },
     );
   }

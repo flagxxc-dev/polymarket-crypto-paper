@@ -1,28 +1,32 @@
 import { NextResponse } from "next/server";
 import { executeSell } from "@/lib/trade-client";
 import { isAuthenticated } from "@/lib/auth";
+import { assertLiveTradingEnabled } from "@/lib/security";
 import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
+  const blocked = assertLiveTradingEnabled();
+  if (blocked) return blocked;
+
   if (!(await isAuthenticated())) {
     logger.warn("[Sell] Not authenticated");
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   const { tokenId, mode, shares, price } = await request.json();
 
   if (mode !== "market" && mode !== "limit") {
-    return NextResponse.json({ error: "Invalid mode" }, { status: 400 });
+    return NextResponse.json({ error: "无效的交易模式" }, { status: 400 });
   }
   if (!tokenId || !shares || shares <= 0) {
     return NextResponse.json(
-      { error: "Missing required fields" },
+      { error: "缺少必填字段" },
       { status: 400 },
     );
   }
   if (mode === "limit" && !price) {
     return NextResponse.json(
-      { error: "Limit price required" },
+      { error: "限价单需填写价格" },
       { status: 400 },
     );
   }
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
   } catch (err) {
     logger.error(`[Sell] Error: ${err}`);
     return NextResponse.json(
-      { success: false, error: String(err) },
+      { success: false, error: "卖出失败" },
       { status: 500 },
     );
   }

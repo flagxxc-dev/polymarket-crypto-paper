@@ -16,6 +16,9 @@ async function getClobClient(): Promise<ClobClient> {
   if (clobClient) return clobClient;
 
   const config = getConfig();
+  if (!config.api.privateKey?.trim()) {
+    throw new Error("POLYGON_PRIVATE_KEY not configured");
+  }
   const wallet = new Wallet(config.api.privateKey);
   const host = config.api.clobApiUrl;
   const chain = Chain.POLYGON;
@@ -205,7 +208,7 @@ export async function executeTrade(
       const reason =
         (result as { errorMsg?: string; error?: string })?.errorMsg ??
         (result as { error?: string })?.error ??
-        "order rejected by exchange";
+        "订单被交易所拒绝";
       return {
         success: false,
         sharesBought: 0,
@@ -226,7 +229,7 @@ export async function executeTrade(
         avgPrice: 0,
         totalCost: 0,
         error:
-          "order matched nothing — your max price may be below the best ask, or there is no liquidity",
+          "未匹配到任何订单 — 最高价格可能低于最低卖价，或当前无流动性",
       };
     }
 

@@ -5,17 +5,18 @@ const AUTH_COOKIE = "trade_auth";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function POST(request: Request) {
-  const { password } = await request.json();
-  const correctPassword = process.env.TRADE_PASSWORD;
+  const { username, password } = await request.json();
+  const correctUsername = process.env.TRADE_USERNAME?.trim();
+  const correctPassword = process.env.TRADE_PASSWORD?.trim();
 
-  if (!correctPassword) {
+  if (!correctUsername || !correctPassword) {
     return NextResponse.json(
-      { error: "TRADE_PASSWORD not configured" },
+      { error: "未配置 TRADE_USERNAME / TRADE_PASSWORD" },
       { status: 500 },
     );
   }
 
-  if (password === correctPassword) {
+  if (username === correctUsername && password === correctPassword) {
     const response = NextResponse.json({ success: true });
     response.cookies.set(AUTH_COOKIE, "authenticated", {
       httpOnly: true,
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   }
 
   await new Promise((r) => setTimeout(r, 2000)); // 2s delay on failure
-  return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+  return NextResponse.json({ error: "账号或密码错误" }, { status: 401 });
 }
 
 export async function GET() {
@@ -37,6 +38,7 @@ export async function GET() {
   return NextResponse.json({
     authenticated: authCookie?.value === "authenticated",
     readonlyMode,
+    liveTradingEnabled: process.env.ENABLE_LIVE_TRADING === "true",
   });
 }
 

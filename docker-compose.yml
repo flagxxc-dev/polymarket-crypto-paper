@@ -1,13 +1,26 @@
 services:
   app:
-    build: .
-    image: polymarket-stocks-hedging
-    container_name: polymarket-stocks-hedging
-    network_mode: service:vpn
-    depends_on:
-      - vpn
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        HTTP_PROXY: ""
+        HTTPS_PROXY: ""
+        http_proxy: ""
+        https_proxy: ""
+        NO_PROXY: "*"
+    image: polymarket-crypto-paper
+    container_name: polymarket-crypto-paper
+    ports:
+      - "${APP_PORT:-50003}:3000"
     env_file:
       - .env
+    environment:
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      NO_PROXY: "*"
     volumes:
       - ${CONFIG_PATH:-./config}:/app/config:ro
       - ${DATA_PATH:-./data}:/app/data
@@ -18,16 +31,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-  vpn:
-    image: dperson/openvpn-client
-    container_name: poylmarket-stocks-hedging-vpn
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun
-    volumes:
-      - ${VPN_PATH:-./vpn}:/vpn
-    restart: unless-stopped
-    sysctls:
-      - net.ipv6.conf.all.disable_ipv6=0

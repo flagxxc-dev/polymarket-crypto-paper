@@ -101,11 +101,11 @@ export default function ApproveModal({
     const parsedPrice = Number.parseFloat(maxPrice);
     const parsedAmount = maxAmount ? Number.parseFloat(maxAmount) : NaN;
     if (!Number.isFinite(parsedPrice) || parsedPrice <= 0) {
-      setResult({ success: false, message: "Enter a valid max price" });
+      setResult({ success: false, message: "请输入有效的最高价格" });
       return;
     }
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setResult({ success: false, message: "Enter a valid amount ($)" });
+      setResult({ success: false, message: "请输入有效的金额 ($)" });
       return;
     }
     setExecuting(true);
@@ -125,7 +125,7 @@ export default function ApproveModal({
       if (res.status === 401) {
         setResult({
           success: false,
-          message: "Not authenticated - please login",
+          message: "未登录，请先登录",
         });
         setExecuting(false);
         return;
@@ -134,21 +134,21 @@ export default function ApproveModal({
       if (data.success) {
         setResult({
           success: true,
-          message: `Bought ${data.sharesBought.toFixed(2)} shares @ $${data.avgPrice.toFixed(3)} avg`,
+          message: `已买入 ${data.sharesBought.toFixed(2)} 股，均价 $${data.avgPrice.toFixed(3)}`,
         });
         onSuccess();
       } else {
         setResult({
           success: false,
           message: data.error
-            ? `Trade failed: ${data.error}`
-            : "Trade failed - no shares bought",
+            ? `交易失败：${data.error}`
+            : "交易失败 — 未买入任何股份",
         });
       }
     } catch (err) {
       setResult({
         success: false,
-        message: `Error: ${err instanceof Error ? err.message : "Unknown"}`,
+        message: `错误：${err instanceof Error ? err.message : "未知错误"}`,
       });
     }
     setExecuting(false);
@@ -158,7 +158,7 @@ export default function ApproveModal({
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Execute Trade</DialogTitle>
+          <DialogTitle>执行交易</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -166,13 +166,13 @@ export default function ApproveModal({
 
           <div className="grid grid-cols-2 gap-4 p-4 bg-secondary/50 rounded-lg">
             <div>
-              <p className="text-xs text-muted-foreground">Strike</p>
+              <p className="text-xs text-muted-foreground">行权价</p>
               <p className="font-mono font-semibold">
                 ${bracket.strikePrice.toLocaleString()}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Delta</p>
+              <p className="text-xs text-muted-foreground">偏离</p>
               <p
                 className={`font-mono font-semibold ${bracket.delta > 0 ? "text-primary" : "text-destructive"}`}
               >
@@ -184,7 +184,7 @@ export default function ApproveModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">Price</label>
+              <label className="text-sm text-muted-foreground">价格</label>
               <Input
                 type="number"
                 step="0.001"
@@ -200,7 +200,7 @@ export default function ApproveModal({
             </div>
             <div className="space-y-2">
               <label className="text-sm text-muted-foreground">
-                Amount ($)
+                金额 ($)
               </label>
               <Input
                 type="number"
@@ -218,15 +218,15 @@ export default function ApproveModal({
 
           {loading ? (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Loading...
+              加载中...
             </p>
           ) : preview && preview.shares === 0 ? (
             <div className="p-3 rounded-lg text-sm bg-amber-500/15 text-amber-400 space-y-2">
               {preview.bestAsk != null ? (
                 <>
                   <p>
-                    No shares fillable at max ${Number(maxPrice).toFixed(3)} —
-                    the current best ask is ${preview.bestAsk.toFixed(3)}.
+                    最高 $${Number(maxPrice).toFixed(3)} 无法成交 —
+                    当前最低卖价为 $${preview.bestAsk.toFixed(3)}。
                   </p>
                   <Button
                     variant="outline"
@@ -236,32 +236,32 @@ export default function ApproveModal({
                       setMaxPrice(preview.bestAsk!.toFixed(3));
                     }}
                   >
-                    Raise to ${preview.bestAsk.toFixed(3)}
+                    提高到 $${preview.bestAsk.toFixed(3)}
                   </Button>
                 </>
               ) : (
-                <p>No liquidity available in the order book right now.</p>
+                <p>当前订单簿暂无流动性。</p>
               )}
             </div>
           ) : preview ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-secondary/50 rounded">
-                  <p className="text-xs text-muted-foreground">Shares</p>
+                  <p className="text-xs text-muted-foreground">股数</p>
                   <p className="font-mono">{preview.shares.toFixed(2)}</p>
                 </div>
                 <div className="p-3 bg-secondary/50 rounded">
-                  <p className="text-xs text-muted-foreground">Cost</p>
+                  <p className="text-xs text-muted-foreground">成本</p>
                   <p className="font-mono">${preview.totalCost.toFixed(2)}</p>
                 </div>
                 <div className="p-3 bg-secondary/50 rounded">
-                  <p className="text-xs text-muted-foreground">APY</p>
+                  <p className="text-xs text-muted-foreground">年化收益</p>
                   <p className="font-mono text-primary">
                     {preview.apy.toFixed(2)}%
                   </p>
                 </div>
                 <div className="p-3 bg-secondary/50 rounded">
-                  <p className="text-xs text-muted-foreground">Profit</p>
+                  <p className="text-xs text-muted-foreground">利润</p>
                   <p className="font-mono text-primary">
                     ${preview.profit.toFixed(2)}
                   </p>
@@ -273,13 +273,13 @@ export default function ApproveModal({
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 bg-green-500/10 border border-green-500/20 rounded">
                     <p className="text-[10px] text-muted-foreground uppercase">
-                      If {ticker} &lt; ${bracket.strikePrice}
+                      若 {ticker} &lt; ${bracket.strikePrice}
                     </p>
                     <p className="font-mono text-green-400 font-semibold">
                       +${((1 - preview.avgPrice) * preview.shares).toFixed(0)}
                     </p>
                     <p className="text-[10px] text-muted-foreground">
-                      bet profit
+                      押注利润
                     </p>
                   </div>
                   {(() => {
@@ -297,13 +297,13 @@ export default function ApproveModal({
                     return (
                       <div className="p-3 bg-secondary/50 rounded">
                         <p className="text-[10px] text-muted-foreground uppercase">
-                          If {ticker} &ge; ${bracket.strikePrice}
+                          若 {ticker} &ge; ${bracket.strikePrice}
                         </p>
                         <p className="font-mono text-muted-foreground font-semibold">
                           {hedgeCostPct.toFixed(1)}%
                         </p>
                         <p className="text-[10px] text-muted-foreground">
-                          hedge cost
+                          对冲成本
                         </p>
                       </div>
                     );
@@ -327,7 +327,7 @@ export default function ApproveModal({
 
           <div className="flex gap-3 pt-2">
             <Button variant="outline" onClick={onClose} className="flex-1">
-              {result?.success ? "Close" : "Cancel"}
+              {result?.success ? "关闭" : "取消"}
             </Button>
             {!result?.success && (
               <Button
@@ -338,10 +338,10 @@ export default function ApproveModal({
                 className="flex-1 bg-primary text-primary-foreground"
               >
                 {executing
-                  ? "Executing..."
+                  ? "执行中..."
                   : balance <= 0
-                    ? "No balance"
-                    : "Execute"}
+                    ? "余额不足"
+                    : "执行"}
               </Button>
             )}
           </div>

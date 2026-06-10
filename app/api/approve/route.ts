@@ -2,14 +2,17 @@ import { NextResponse } from "next/server";
 import { executeTrade } from "@/lib/trade-client";
 import { saveTrade } from "@/lib/persistence";
 import { isAuthenticated } from "@/lib/auth";
+import { assertLiveTradingEnabled } from "@/lib/security";
 import { logger } from "@/lib/logger";
 import { Trade } from "@/lib/types";
 
 export async function POST(request: Request) {
-  // Check authentication
+  const blocked = assertLiveTradingEnabled();
+  if (blocked) return blocked;
+
   if (!(await isAuthenticated())) {
     logger.warn("[Trade] Not authenticated");
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    return NextResponse.json({ error: "未登录" }, { status: 401 });
   }
 
   const { marketId, noTokenId, strikePrice, maxPrice, maxAmount } =
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
   if (!noTokenId || !maxPrice) {
     logger.warn("[Trade] Missing required fields");
     return NextResponse.json(
-      { error: "Missing required fields" },
+      { error: "缺少必填字段" },
       { status: 400 },
     );
   }
@@ -30,7 +33,7 @@ export async function POST(request: Request) {
   try {
     if (!maxAmount) {
       return NextResponse.json(
-        { error: "maxAmount is required" },
+        { error: "金额为必填项" },
         { status: 400 },
       );
     }
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
   } catch (err) {
     logger.error(`[Trade] Error: ${err}`);
     return NextResponse.json(
-      { success: false, error: String(err) },
+      { success: false, error: "交易失败" },
       { status: 500 },
     );
   }

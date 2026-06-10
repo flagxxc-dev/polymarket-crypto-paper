@@ -16,6 +16,7 @@ interface Props {
 }
 
 export default function LoginModal({ onClose, onSuccess }: Props) {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,17 +30,17 @@ export default function LoginModal({ onClose, onSuccess }: Props) {
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
 
       if (res.ok) {
         onSuccess();
         onClose();
       } else {
-        setError("Invalid password");
+        setError("账号或密码错误");
       }
     } catch {
-      setError("Authentication failed");
+      setError("认证失败");
     }
 
     setLoading(false);
@@ -49,18 +50,27 @@ export default function LoginModal({ onClose, onSuccess }: Props) {
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Authenticate to Trade</DialogTitle>
+          <DialogTitle>登录以交易</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
-            <label className="text-sm text-muted-foreground">Password</label>
+            <label className="text-sm text-muted-foreground">账号</label>
+            <Input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="请输入账号"
+              autoFocus
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">密码</label>
             <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter trading password"
-              autoFocus
+              placeholder="请输入密码"
             />
           </div>
 
@@ -73,14 +83,14 @@ export default function LoginModal({ onClose, onSuccess }: Props) {
               onClick={onClose}
               className="flex-1"
             >
-              Cancel
+              取消
             </Button>
             <Button
               type="submit"
-              disabled={loading || !password}
+              disabled={loading || !username || !password}
               className="flex-1"
             >
-              {loading ? "..." : "Login"}
+              {loading ? "..." : "登录"}
             </Button>
           </div>
         </form>

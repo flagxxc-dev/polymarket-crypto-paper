@@ -2,8 +2,16 @@ import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
 import { runScanner } from "@/lib/scanner";
 import { saveOpportunities } from "@/lib/persistence";
+import { isStockScannerEnabled } from "@/lib/security";
 
 export async function POST() {
+  if (!isStockScannerEnabled()) {
+    return NextResponse.json(
+      { success: false, error: "股票扫描已停用" },
+      { status: 403 },
+    );
+  }
+
   logger.info("[Scan] Starting scan...");
   try {
     const opportunities = await runScanner();
@@ -15,7 +23,7 @@ export async function POST() {
   } catch (err) {
     logger.error(`[Scan] Error: ${err}`);
     return NextResponse.json(
-      { success: false, error: String(err) },
+      { success: false, error: "扫描失败" },
       { status: 500 },
     );
   }

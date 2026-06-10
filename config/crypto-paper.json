@@ -1,0 +1,12 @@
+{
+  "assets": ["BTC", "ETH"],
+  "intervalsMinutes": [5],
+  "paper": {
+    "initialBalance": 10000,
+    "currency": "USDC"
+  },
+  "api": {
+    "gammaApiUrl": "https://gamma-api.polymarket.com",
+    "clobApiUrl": "https://clob.polymarket.com"
+  }
+}

@@ -43,12 +43,12 @@ export default function PositionsTable({
         <Table className="min-w-[640px]">
           <TableHeader>
             <TableRow>
-              <TableHead>Position</TableHead>
-              <TableHead className="text-right">Shares</TableHead>
-              <TableHead className="text-right">Avg</TableHead>
-              <TableHead className="text-right">Now</TableHead>
-              <TableHead className="text-right">Value</TableHead>
-              <TableHead className="text-right">PnL</TableHead>
+              <TableHead>持仓</TableHead>
+              <TableHead className="text-right">股数</TableHead>
+              <TableHead className="text-right">均价</TableHead>
+              <TableHead className="text-right">现价</TableHead>
+              <TableHead className="text-right">市值</TableHead>
+              <TableHead className="text-right">盈亏</TableHead>
               <TableHead className="text-right"></TableHead>
             </TableRow>
           </TableHeader>
@@ -83,7 +83,7 @@ export default function PositionsTable({
                     {p.size.toFixed(2)}
                     {locked > 0.01 && (
                       <span className="block text-[10px] text-muted-foreground">
-                        {avail.toFixed(2)} free
+                        {avail.toFixed(2)} 可用
                       </span>
                     )}
                   </TableCell>
@@ -111,7 +111,7 @@ export default function PositionsTable({
                       disabled={avail <= 0}
                       onClick={() => onSell(p)}
                     >
-                      Sell
+                      卖出
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -124,16 +124,16 @@ export default function PositionsTable({
       {openOrders.length > 0 && (
         <div>
           <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
-            Open Orders
+            未成交订单
           </p>
           <div className="overflow-x-auto">
             <Table className="min-w-[560px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Market</TableHead>
-                  <TableHead>Side</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-right">Filled</TableHead>
+                  <TableHead>市场</TableHead>
+                  <TableHead>方向</TableHead>
+                  <TableHead className="text-right">价格</TableHead>
+                  <TableHead className="text-right">成交</TableHead>
                   <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -143,7 +143,7 @@ export default function PositionsTable({
                     <TableCell className="truncate max-w-[220px]">
                       {titleFor(o.tokenId) || o.outcome}
                     </TableCell>
-                    <TableCell>{o.side}</TableCell>
+                    <TableCell>{o.side === "BUY" ? "买入" : "卖出"}</TableCell>
                     <TableCell className="text-right font-mono">
                       ${o.price.toFixed(3)}
                     </TableCell>
@@ -157,7 +157,7 @@ export default function PositionsTable({
                         disabled={cancelingId === o.orderId}
                         onClick={() => onCancel(o.orderId)}
                       >
-                        {cancelingId === o.orderId ? "..." : "Cancel"}
+                        {cancelingId === o.orderId ? "..." : "取消"}
                       </Button>
                     </TableCell>
                   </TableRow>
