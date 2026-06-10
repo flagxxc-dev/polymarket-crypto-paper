@@ -46,12 +46,17 @@ async function getClobClient(): Promise<ClobClient> {
   return clobClient;
 }
 
-export async function getOrderbook(tokenId: string): Promise<Orderbook | null> {
+export async function getOrderbook(
+  tokenId: string,
+  timeoutMs = 8000,
+): Promise<Orderbook | null> {
   const config = getConfig();
   try {
     const res = await fetch(
       `${config.api.clobApiUrl}/book?token_id=${tokenId}`,
+      { signal: AbortSignal.timeout(timeoutMs) },
     );
+    if (!res.ok) return null;
     return await res.json();
   } catch {
     return null;

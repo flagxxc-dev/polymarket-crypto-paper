@@ -24,6 +24,8 @@ import {
 } from "./crypto-types";
 
 const DATA_PATH = join(process.cwd(), "data", "paper-trading.json");
+/** Limit buy ceiling above live best ask to absorb fast-moving 5m books. */
+const BUY_SLIPPAGE = 0.02;
 
 function ensureDataDir() {
   const dir = join(process.cwd(), "data");
@@ -219,17 +221,29 @@ export async function paperBuy(args: {
 
   const minutesToExpiry = Math.max(market.secondsRemaining / 60, 0.01);
   const daysToExpiry = minutesToExpiry / (60 * 24);
+  const liveProbe = calculateExecutionPreview(book, 1, daysToExpiry, args.amount);
+  const liveBestAsk = liveProbe.bestAsk;
+  const ceilingFromBook =
+    liveBestAsk != null ? liveBestAsk + BUY_SLIPPAGE : args.maxPrice;
+  const effectiveMaxPrice = Math.min(
+    args.maxPrice > 0
+      ? Math.max(args.maxPrice, ceilingFromBook)
+      : ceilingFromBook,
+    0.99,
+  );
   const preview = calculateExecutionPreview(
     book,
-    args.maxPrice,
+    effectiveMaxPrice,
     daysToExpiry,
     args.amount,
   );
 
   if (preview.shares <= 0 || preview.totalCost <= 0) {
+    const askHint =
+      liveBestAsk != null ? `（当前最低卖价约 $${liveBestAsk.toFixed(3)}）` : "";
     return {
       success: false,
-      error: "按当前真实盘口无法成交，请提高最高买入价",
+      error: `按当前真实盘口无法成交${askHint}，可能卖盘为空或网络超时，请稍后重试`,
     };
   }
 

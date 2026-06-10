@@ -5,6 +5,7 @@ import {
   calculateSellPreview,
   getOrderbook,
 } from "./trade-client";
+import { Orderbook } from "./types";
 import {
   CryptoAsset,
   CryptoInterval,
@@ -51,6 +52,26 @@ interface GammaEvent {
 }
 
 let cachedConfig: CryptoPaperConfig | null = null;
+
+const orderbookCache = new Map<
+  string,
+  { book: Orderbook; fetchedAt: number }
+>();
+const ORDERBOOK_CACHE_MS = 2500;
+const ORDERBOOK_TIMEOUT_MS = 6000;
+
+async function getOrderbookCached(tokenId: string): Promise<Orderbook | null> {
+  const cached = orderbookCache.get(tokenId);
+  if (cached && Date.now() - cached.fetchedAt < ORDERBOOK_CACHE_MS) {
+    return cached.book;
+  }
+
+  const book = await getOrderbook(tokenId, ORDERBOOK_TIMEOUT_MS);
+  if (book) {
+    orderbookCache.set(tokenId, { book, fetchedAt: Date.now() });
+  }
+  return book;
+}
 
 export function getCryptoPaperConfig(): CryptoPaperConfig {
   if (cachedConfig) return cachedConfig;
@@ -119,7 +140,7 @@ async function quoteOutcome(tokenId: string): Promise<{
   bestBid: number | null;
   midPrice: number | null;
 }> {
-  const book = await getOrderbook(tokenId);
+  const book = await getOrderbookCached(tokenId);
   if (!book) {
     return { bestAsk: null, bestBid: null, midPrice: null };
   }
@@ -178,22 +199,33 @@ async function buildMarketWindow(
   const gammaPrices = parseJsonArray<string>(market.outcomePrices).map(Number);
 
   const outcomes: CryptoOutcomeQuote[] = [];
+  const outcomeTasks: Promise<CryptoOutcomeQuote | null>[] = [];
+
   for (let i = 0; i < labels.length; i++) {
     const label = labels[i];
     if (label !== "Up" && label !== "Down") continue;
     const tokenId = tokenIds[i];
     if (!tokenId) continue;
 
-    const live = await quoteOutcome(tokenId);
-    outcomes.push({
-      outcome: label,
-      tokenId,
-      bestAsk: live.bestAsk,
-      bestBid: live.bestBid,
-      midPrice:
-        live.midPrice ??
-        (Number.isFinite(gammaPrices[i]) ? gammaPrices[i] : null),
-    });
+    outcomeTasks.push(
+      (async () => {
+        const live = await quoteOutcome(tokenId);
+        return {
+          outcome: label,
+          tokenId,
+          bestAsk: live.bestAsk,
+          bestBid: live.bestBid,
+          midPrice:
+            live.midPrice ??
+            (Number.isFinite(gammaPrices[i]) ? gammaPrices[i] : null),
+        };
+      })(),
+    );
+  }
+
+  const quoted = await Promise.all(outcomeTasks);
+  for (const row of quoted) {
+    if (row) outcomes.push(row);
   }
 
   if (outcomes.length === 0) return null;
@@ -225,7 +257,10 @@ async function buildMarketWindow(
   };
 }
 
-export async function fetchActiveCryptoMarkets(): Promise<CryptoMarketWindow[]> {
+export async function fetchActiveCryptoMarkets(): Promise<{
+  markets: CryptoMarketWindow[];
+  fetchedAt: number;
+}> {
   const config = getCryptoPaperConfig();
   const tasks: Promise<CryptoMarketWindow | null>[] = [];
 
@@ -236,12 +271,15 @@ export async function fetchActiveCryptoMarkets(): Promise<CryptoMarketWindow[]> 
   }
 
   const results = await Promise.all(tasks);
-  return results
-    .filter((r): r is CryptoMarketWindow => r != null)
-    .sort((a, b) => {
-      if (a.asset !== b.asset) return a.asset.localeCompare(b.asset);
-      return a.intervalMinutes - b.intervalMinutes;
-    });
+  return {
+    markets: results
+      .filter((r): r is CryptoMarketWindow => r != null)
+      .sort((a, b) => {
+        if (a.asset !== b.asset) return a.asset.localeCompare(b.asset);
+        return a.intervalMinutes - b.intervalMinutes;
+      }),
+    fetchedAt: Date.now(),
+  };
 }
 
 export async function fetchCryptoMarketBySlug(
@@ -265,20 +303,27 @@ export async function fetchCryptoMarketBySlug(
 
   const labels = parseJsonArray<string>(market.outcomes);
   const tokenIds = parseJsonArray<string>(market.clobTokenIds);
-  const outcomes: CryptoOutcomeQuote[] = [];
+  const outcomeTasks: Promise<CryptoOutcomeQuote | null>[] = [];
 
   for (let i = 0; i < labels.length; i++) {
     const label = labels[i];
     if (label !== "Up" && label !== "Down") continue;
     const tokenId = tokenIds[i];
     if (!tokenId) continue;
-    const live = await quoteOutcome(tokenId);
-    outcomes.push({
-      outcome: label as CryptoOutcome,
-      tokenId,
-      ...live,
-    });
+    outcomeTasks.push(
+      (async () => {
+        const live = await quoteOutcome(tokenId);
+        return {
+          outcome: label as CryptoOutcome,
+          tokenId,
+          ...live,
+        };
+      })(),
+    );
   }
+
+  const quoted = await Promise.all(outcomeTasks);
+  const outcomes = quoted.filter((o): o is CryptoOutcomeQuote => o != null);
 
   const endDate =
     getWindowEndIsoFromSlug(event.slug || slug) ||
@@ -306,7 +351,7 @@ export async function fetchCryptoMarketBySlug(
 }
 
 export async function getLiveBidPrice(tokenId: string): Promise<number> {
-  const book = await getOrderbook(tokenId);
+  const book = await getOrderbookCached(tokenId);
   if (!book) return 0;
   const preview = calculateSellPreview(book, 1, 0);
   return preview.avgPrice;

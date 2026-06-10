@@ -1,6 +1,7 @@
 "use client";
 
 import LoginModal from "@/components/LoginModal";
+import CryptoSpotPanel from "@/components/CryptoSpotPanel";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,13 +19,35 @@ import {
   PaperPortfolioView,
   PaperTradeRecord,
 } from "@/lib/crypto-types";
+import { getWindowStartSecFromSlug } from "@/lib/chainlink-feed";
+import { usePolymarketChainlinkPrices } from "@/hooks/usePolymarketChainlinkPrices";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+function formatWaitDuration(ms: number): string {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  if (m > 0) return `${m} 分 ${s} 秒`;
+  return `${s} 秒`;
+}
+
+function getSecondsRemaining(endDate: string, nowMs: number): number {
+  return Math.max(0, Math.floor((new Date(endDate).getTime() - nowMs) / 1000));
+}
 
 function formatCountdown(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}分${s.toString().padStart(2, "0")}秒`;
+}
+
+function formatSyncTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 function formatTime(iso: string): string {
@@ -36,6 +59,7 @@ export default function CryptoPaperPage() {
   const [amount, setAmount] = useState("50");
   const [message, setMessage] = useState("");
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const { getWindowSnapshot } = usePolymarketChainlinkPrices();
 
   const { data: auth, refetch: refetchAuth } = useQuery<{
     authenticated: boolean;
@@ -47,30 +71,57 @@ export default function CryptoPaperPage() {
     },
   });
 
-  const { data: marketsData, isLoading: marketsLoading } = useQuery<{
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const {
+    data: marketsData,
+    isLoading: marketsLoading,
+    isFetching: marketsFetching,
+    isError: marketsError,
+    dataUpdatedAt: marketsUpdatedAt,
+    refetch: refetchMarkets,
+  } = useQuery<{
     markets: CryptoMarketWindow[];
+    fetchedAt?: number;
   }>({
     queryKey: ["cryptoMarkets"],
     queryFn: async () => {
-      const res = await fetch("/api/crypto/markets");
+      const res = await fetch("/api/crypto/markets", { cache: "no-store" });
+      if (!res.ok) throw new Error("获取市场失败");
       return res.json();
     },
-    refetchInterval: 5000,
+    refetchInterval: 4000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
+    retry: 2,
   });
 
   const { data: portfolio } = useQuery<PaperPortfolioView>({
     queryKey: ["cryptoPaper"],
     queryFn: async () => {
-      const res = await fetch("/api/crypto/paper");
+      const res = await fetch("/api/crypto/paper", { cache: "no-store" });
+      if (!res.ok) throw new Error("获取持仓失败");
       return res.json();
     },
     refetchInterval: 3000,
+    refetchIntervalInBackground: true,
+    staleTime: 0,
   });
 
   const activePositions = portfolio?.activePositions ?? portfolio?.account.positions ?? [];
   const pendingSettlement = portfolio?.pendingSettlement ?? [];
+  const pendingSlugs = useMemo(
+    () => new Set(pendingSettlement.map((p) => p.slug)),
+    [pendingSettlement],
+  );
 
   const markets = marketsData?.markets ?? [];
+  const priceSyncedAt = marketsData?.fetchedAt ?? marketsUpdatedAt;
 
   const resetMutation = useMutation({
     mutationFn: async () => {
@@ -90,7 +141,6 @@ export default function CryptoPaperPage() {
       market: CryptoMarketWindow;
       outcome: CryptoOutcome;
       tokenId: string;
-      bestAsk: number;
     }) => {
       const res = await fetch("/api/crypto/paper/buy", {
         method: "POST",
@@ -104,7 +154,7 @@ export default function CryptoPaperPage() {
           title: payload.market.title,
           endDate: payload.market.endDate,
           marketId: payload.market.marketId,
-          maxPrice: payload.bestAsk,
+          maxPrice: 0,
           amount: Number(amount),
         }),
       });
@@ -188,15 +238,16 @@ export default function CryptoPaperPage() {
             ，价格来自官网真实订单簿（例如 $0.45 = 花 45¢ 赌 1 美元结果）
           </li>
           <li>
-            窗口结束后系统会<strong className="text-foreground">自动结算</strong>
-            （通常等待 Polymarket 官方 1–3 分钟出结果），赢的每股兑 $1，输的归零
+            窗口结束后持仓会进入<strong className="text-foreground">「等待结算」</strong>
+            状态（Polymarket 官方通常 1–3 分钟出结果），赢的每股兑 $1，输的归零
           </li>
           <li>
-            下方价格、倒计时、成交逻辑均对接 Polymarket 官方 API；只有余额是本地模拟的
+            下方展示 <strong className="text-foreground">Chainlink 开盘价 / 现价 / 差额 / 走势</strong>
+            （与 Polymarket 官方结算同源），帮助判断当前涨还是跌领先
           </li>
         </ol>
         <p className="text-xs text-yellow-500/90">
-          提示：5 分钟盘波动快，先用小金额（如 $20–50）练手。本局结束后无需点「卖出」，等自动结算即可。
+          提示：5 分钟盘波动快，先用小金额（如 $20–50）练手。本局结束后无需点「卖出」，等自动结算即可。买入时会按实时盘口 + 2¢ 滑点缓冲撮合。
         </p>
       </Card>
 
@@ -245,9 +296,26 @@ export default function CryptoPaperPage() {
               className="font-mono"
             />
           </div>
-          {message && (
-            <p className="text-sm text-muted-foreground flex-1">{message}</p>
-          )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-1">
+            {priceSyncedAt ? (
+              <p className="text-xs text-muted-foreground">
+                盘口同步于 {formatSyncTime(priceSyncedAt)}
+                {marketsFetching ? " · 更新中…" : " · 每 4 秒刷新"}
+              </p>
+            ) : null}
+            {marketsError ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => refetchMarkets()}
+              >
+                盘口同步失败，点击重试
+              </Button>
+            ) : null}
+            {message ? (
+              <p className="text-sm text-muted-foreground">{message}</p>
+            ) : null}
+          </div>
         </div>
 
         {marketsLoading ? (
@@ -258,7 +326,12 @@ export default function CryptoPaperPage() {
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {markets.map((market) => (
+            {markets.map((market) => {
+              const secondsLeft = getSecondsRemaining(market.endDate, nowMs);
+              const isPending = pendingSlugs.has(market.slug);
+              const windowEnded = secondsLeft <= 0;
+
+              return (
               <Card key={market.slug} className="p-4 bg-secondary/20">
                 <div className="flex justify-between items-start gap-2 mb-3">
                   <div>
@@ -268,13 +341,41 @@ export default function CryptoPaperPage() {
                     <p className="text-xs text-muted-foreground mt-1">
                       {market.title}
                     </p>
+                    {isPending && (
+                      <p className="text-xs text-yellow-500 mt-1">
+                        你有持仓等待结算
+                      </p>
+                    )}
                   </div>
                   <div className="text-right text-xs">
-                    <p className="text-muted-foreground">剩余</p>
-                    <p className="font-mono text-primary">
-                      {formatCountdown(market.secondsRemaining)}
-                    </p>
+                    {windowEnded ? (
+                      <>
+                        <p className="text-yellow-500">本局已结束</p>
+                        <p className="text-muted-foreground mt-1">
+                          {isPending ? "等待官方结果" : "等待下一窗口"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-muted-foreground">剩余</p>
+                        <p className="font-mono text-primary">
+                          {formatCountdown(secondsLeft)}
+                        </p>
+                      </>
+                    )}
                   </div>
+                </div>
+
+                <div className="mb-3">
+                  <CryptoSpotPanel
+                    asset={market.asset}
+                    slug={market.slug}
+                    snapshot={getWindowSnapshot(
+                      market.asset,
+                      market.slug,
+                      getWindowStartSecFromSlug(market.slug),
+                    )}
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -298,6 +399,7 @@ export default function CryptoPaperPage() {
                         disabled={
                           buyMutation.isPending ||
                           !market.acceptingOrders ||
+                          windowEnded ||
                           o.bestAsk == null
                         }
                         onClick={() =>
@@ -305,7 +407,6 @@ export default function CryptoPaperPage() {
                             market,
                             outcome: o.outcome,
                             tokenId: o.tokenId,
-                            bestAsk: o.bestAsk ?? 0,
                           })
                         }
                       >
@@ -324,7 +425,8 @@ export default function CryptoPaperPage() {
                   在 Polymarket 官网查看 →
                 </a>
               </Card>
-            ))}
+            );
+            })}
           </div>
         )}
       </Card>
@@ -335,24 +437,31 @@ export default function CryptoPaperPage() {
             等待结算（{pendingSettlement.length} 笔）
           </p>
           <p className="text-xs text-muted-foreground mb-3">
-            本局时间已到，正在等待 Polymarket 官方公布涨跌结果，通常 1–3
-            分钟内会自动入账并显示在下方「模拟成交记录」。
+            本局 5 分钟窗口已结束，但 Polymarket 官方尚未公布涨跌结果。系统每 3
+            秒自动查询，通常 1–3 分钟内会结算并显示在下方「模拟成交记录」。只有
+            <strong className="text-foreground">持有到窗口结束</strong>
+            的仓位才会出现在这里。
           </p>
           <div className="space-y-2">
-            {pendingSettlement.map((p) => (
+            {pendingSettlement.map((p) => {
+              const endedMs = new Date(p.endDate).getTime();
+              const waitingMs = nowMs - endedMs;
+              return (
               <div
                 key={p.id}
-                className="flex justify-between text-sm border border-border rounded-lg p-2"
+                className="flex flex-col sm:flex-row sm:justify-between gap-1 text-sm border border-border rounded-lg p-2"
               >
                 <span>
                   {p.asset} {p.intervalMinutes}m ·{" "}
                   {p.outcome === "Up" ? "涨" : "跌"} · {p.shares.toFixed(2)} 股
                 </span>
-                <span className="text-muted-foreground font-mono">
-                  成本 ${p.costBasis.toFixed(2)}
+                <span className="text-muted-foreground font-mono text-xs sm:text-sm">
+                  成本 ${p.costBasis.toFixed(2)} · 已等待{" "}
+                  {formatWaitDuration(waitingMs)}
                 </span>
               </div>
-            ))}
+            );
+            })}
           </div>
         </Card>
       )}
