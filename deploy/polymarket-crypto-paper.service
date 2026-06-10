@@ -1,0 +1,17 @@
+[Unit]
+Description=Polymarket Crypto Paper Trading
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/polymarket-crypto-paper
+EnvironmentFile=-/opt/polymarket-crypto-paper/.env
+Environment=NODE_ENV=production
+Environment=PORT=50003
+ExecStart=/usr/bin/npm start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

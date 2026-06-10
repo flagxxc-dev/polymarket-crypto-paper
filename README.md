@@ -178,6 +178,50 @@ docker compose up -d --build
 
 The app runs on port 50003 by default.
 
+### Linux 服务器（无 Docker）
+
+**环境要求：** Node.js 20+（推荐 22）、npm、可选 PM2
+
+```bash
+git clone https://github.com/flagxxc-dev/polymarket-crypto-paper.git
+cd polymarket-crypto-paper
+cp .env.example .env
+# 编辑 .env，修改 TRADE_USERNAME / TRADE_PASSWORD
+chmod +x scripts/deploy-server.sh
+./scripts/deploy-server.sh
+```
+
+脚本会执行 `npm ci` → `npm run build`，若已安装 PM2 则自动守护启动；否则按提示手动运行 `PORT=50003 npm start`。
+
+访问：`http://服务器IP:50003/crypto`
+
+**手动启动（PM2）：**
+
+```bash
+npm ci
+npm run build
+npm install -g pm2
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+**手动启动（systemd）：**
+
+```bash
+# 将项目放到 /opt/polymarket-crypto-paper，修改 deploy/polymarket-crypto-paper.service 中的路径和用户
+sudo cp deploy/polymarket-crypto-paper.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now polymarket-crypto-paper
+```
+
+**Nginx 反代（可选）：** 参考 `deploy/nginx.conf.example`，将域名转发到 `127.0.0.1:50003`。
+
+**注意：**
+- 模拟盘数据保存在 `data/paper-trading.json`，请确保该目录可写
+- 对外暴露前务必修改默认登录密码
+- 防火墙需放行 `PORT`（默认 50003）
+
 ### VPN Setup (Optional)
 
 Required to place orders if your server is in a country where Polymarket is restricted (e.g., France).\
