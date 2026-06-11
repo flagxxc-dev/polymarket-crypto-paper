@@ -2,6 +2,10 @@ import { PaperPortfolioView } from "../crypto-types";
 import { getPaperPortfolio } from "../paper-trading";
 import { CryptoMarketWindow, CryptoOutcome } from "../crypto-types";
 import { botPaperBuy } from "./executor";
+import {
+  computeEqualSharePairBudgets,
+  meetsMinPairShares,
+} from "./pair-arb-sizing";
 import { getPairLockThreshold } from "./pair-threshold";
 import { appendBotLog } from "./state";
 import {
@@ -63,21 +67,35 @@ export async function runPairArbStrategy(
   const threshold = getPairLockThreshold(config);
   if (pair.pairCostAfterFees >= threshold) return;
 
-  const half = config.pairArb.orderAmountUsd / 2;
   const up = getOutcomeQuote(market, "Up");
   const down = getOutcomeQuote(market, "Down");
   if (!up?.bestAsk || !down?.bestAsk) return;
 
+  const sizing = computeEqualSharePairBudgets({
+    orderAmountUsd: config.pairArb.orderAmountUsd,
+    upAsk: up.bestAsk,
+    downAsk: down.bestAsk,
+  });
+
+  if (!meetsMinPairShares(sizing.shareTarget)) {
+    appendBotLog(
+      state,
+      "warn",
+      `[${market.asset}] 配对股数 ${sizing.shareTarget.toFixed(2)} 低于最小下单量，跳过`,
+    );
+    return;
+  }
+
   appendBotLog(
     state,
     "trade",
-    `[${market.asset}] 配对套利：扣费后 ${pair.pairCostAfterFees.toFixed(3)} < ${threshold.toFixed(3)}`,
+    `[${market.asset}] 配对套利：扣费后 ${pair.pairCostAfterFees.toFixed(3)} < ${threshold.toFixed(3)}，目标 ${sizing.shareTarget.toFixed(1)} 股/边`,
   );
 
   const upRes = await botPaperBuy({
     market,
     outcome: "Up",
-    amountUsd: half,
+    amountUsd: sizing.upAmount,
     note: `[${market.asset}] 配对 Up @${up.bestAsk.toFixed(3)}`,
   });
 
@@ -86,16 +104,29 @@ export async function runPairArbStrategy(
     return;
   }
 
+  const matchedShares = upRes.shares ?? sizing.shareTarget;
   const downRes = await botPaperBuy({
     market,
     outcome: "Down",
-    amountUsd: half,
-    note: `[${market.asset}] 配对 Down @${down.bestAsk.toFixed(3)}`,
+    amountUsd: sizing.downAmountForShares(matchedShares),
+    note: `[${market.asset}] 配对 Down @${down.bestAsk.toFixed(3)}（对齐 ${matchedShares.toFixed(1)} 股）`,
   });
 
   if (!downRes.success) {
-    appendBotLog(state, "warn", `[${market.asset}] 配对买 Down 失败：${downRes.error}`);
+    appendBotLog(
+      state,
+      "warn",
+      `[${market.asset}] 配对买 Down 失败（Up 已成交 ${matchedShares.toFixed(1)} 股）：${downRes.error}`,
+    );
   } else {
+    const downShares = downRes.shares ?? 0;
+    if (downShares + 1e-6 < matchedShares * 0.9) {
+      appendBotLog(
+        state,
+        "warn",
+        `[${market.asset}] 配对 Down 仅成交 ${downShares.toFixed(1)} 股，Up ${matchedShares.toFixed(1)} 股，存在未配对敞口`,
+      );
+    }
     appendBotLog(state, "trade", `[${market.asset}] 配对套利双边成交`);
     assetState.lastPairArbAt = Date.now();
     assetState.pairArbCountThisWindow += 1;
