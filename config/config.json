@@ -1,5 +1,5 @@
 {
-  "_comment": "股票对冲扫描已停用，仅保留结构供参考",
+  "_comment": "CLOB/日志遗留配置，crypto 模拟盘主要用 config/crypto-paper.json",
   "stocks": [],
   "opportunities": {
     "opportunityAPY": 25,

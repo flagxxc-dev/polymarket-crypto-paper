@@ -1,8 +1,8 @@
 services:
   app:
     build: .
-    image: polymarket-stocks-hedging
-    container_name: polymarket-stocks-hedging
+    image: polymarket-crypto-paper
+    container_name: polymarket-crypto-paper
     network_mode: service:vpn
     depends_on:
       - vpn
@@ -21,7 +21,7 @@ services:
 
   vpn:
     image: dperson/openvpn-client
-    container_name: polymarket-stocks-hedging-vpn
+    container_name: polymarket-crypto-paper-vpn
     cap_add:
       - NET_ADMIN
     devices:
