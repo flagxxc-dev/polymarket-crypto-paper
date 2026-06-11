@@ -22,10 +22,10 @@ import {
   PaperPosition,
   PaperTradeRecord,
 } from "./crypto-types";
+import { calcBuyFee, calcSellFee, getPaperTradingParams } from "./paper-fees";
+import { computePairCostSummary } from "./pair-cost";
 
 const DATA_PATH = join(process.cwd(), "data", "paper-trading.json");
-/** Limit buy ceiling above live best ask to absorb fast-moving 5m books. */
-const BUY_SLIPPAGE = 0.02;
 
 function ensureDataDir() {
   const dir = join(process.cwd(), "data");
@@ -173,6 +173,10 @@ export async function getPaperPortfolio(): Promise<PaperPortfolioView> {
     account: { ...account, positions: activePositions },
     activePositions,
     pendingSettlement,
+    pairSummaries: computePairCostSummary([
+      ...activePositions,
+      ...pendingSettlement,
+    ]),
     positionsValue,
     totalEquity: account.balance + positionsValue,
     unrealizedPnl: positionsValue - costBasis,
@@ -197,6 +201,7 @@ export async function paperBuy(args: {
   marketId: string;
   maxPrice: number;
   amount: number;
+  note?: string;
 }): Promise<{ success: boolean; error?: string; shares?: number; cost?: number }> {
   if (args.amount <= 0) {
     return { success: false, error: "金额必须大于 0" };
@@ -219,12 +224,13 @@ export async function paperBuy(args: {
     return { success: false, error: "无法获取真实订单簿" };
   }
 
+  const params = getPaperTradingParams();
   const minutesToExpiry = Math.max(market.secondsRemaining / 60, 0.01);
   const daysToExpiry = minutesToExpiry / (60 * 24);
   const liveProbe = calculateExecutionPreview(book, 1, daysToExpiry, args.amount);
   const liveBestAsk = liveProbe.bestAsk;
   const ceilingFromBook =
-    liveBestAsk != null ? liveBestAsk + BUY_SLIPPAGE : args.maxPrice;
+    liveBestAsk != null ? liveBestAsk + params.buySlippage : args.maxPrice;
   const effectiveMaxPrice = Math.min(
     args.maxPrice > 0
       ? Math.max(args.maxPrice, ceilingFromBook)
@@ -247,7 +253,23 @@ export async function paperBuy(args: {
     };
   }
 
-  account.balance -= preview.totalCost;
+  if (preview.shares < params.minOrderShares) {
+    return {
+      success: false,
+      error: `成交股数 ${preview.shares.toFixed(2)} 低于最小 ${params.minOrderShares} 股，请加大金额`,
+    };
+  }
+
+  const buyFee = calcBuyFee(preview.totalCost);
+  const totalDebit = preview.totalCost + buyFee;
+
+  if (totalDebit > account.balance) {
+    return { success: false, error: "模拟余额不足（含手续费）" };
+  }
+
+  account.balance -= totalDebit;
+  const costWithFee = preview.totalCost + buyFee;
+  const avgWithFee = costWithFee / preview.shares;
   const windowEndIso =
     getWindowEndIsoFromSlug(args.slug) || args.endDate || market.endDate;
   account.positions = mergePosition(account.positions, {
@@ -261,8 +283,8 @@ export async function paperBuy(args: {
     title: args.title,
     endDate: windowEndIso,
     shares: preview.shares,
-    avgPrice: preview.avgPrice,
-    costBasis: preview.totalCost,
+    avgPrice: avgWithFee,
+    costBasis: costWithFee,
   });
 
   account.history.unshift({
@@ -273,9 +295,9 @@ export async function paperBuy(args: {
     intervalMinutes: args.intervalMinutes,
     outcome: args.outcome,
     shares: preview.shares,
-    price: preview.avgPrice,
-    amount: preview.totalCost,
-    note: "模拟买入（真实盘口价格）",
+    price: avgWithFee,
+    amount: totalDebit,
+    note: args.note ?? `模拟买入（盘口 $${preview.avgPrice.toFixed(3)} + 手续费 $${buyFee.toFixed(2)}）`,
     executedAt: Date.now(),
   });
 
@@ -283,7 +305,7 @@ export async function paperBuy(args: {
   return {
     success: true,
     shares: preview.shares,
-    cost: preview.totalCost,
+    cost: totalDebit,
   };
 }
 
@@ -328,7 +350,9 @@ export async function paperSell(args: {
   }
 
   const soldShares = preview.fillableShares;
-  const proceeds = preview.proceeds;
+  const grossProceeds = preview.proceeds;
+  const sellFee = calcSellFee(grossProceeds);
+  const proceeds = grossProceeds - sellFee;
   const costReleased = position.avgPrice * soldShares;
   const pnl = proceeds - costReleased;
 
@@ -356,7 +380,7 @@ export async function paperSell(args: {
     price: preview.avgPrice,
     amount: proceeds,
     pnl,
-    note: "模拟卖出（真实盘口价格）",
+    note: `模拟卖出（gross $${grossProceeds.toFixed(2)} - 手续费 $${sellFee.toFixed(2)}）`,
     executedAt: Date.now(),
   });
 

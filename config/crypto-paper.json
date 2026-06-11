@@ -8,5 +8,11 @@
   "api": {
     "gammaApiUrl": "https://gamma-api.polymarket.com",
     "clobApiUrl": "https://clob.polymarket.com"
+  },
+  "trading": {
+    "takerFeeBps": 100,
+    "minOrderShares": 5,
+    "buySlippage": 0.02,
+    "pairArbMinEdge": 0.02
   }
 }

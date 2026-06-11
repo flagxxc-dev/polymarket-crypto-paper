@@ -1,11 +1,15 @@
 export async function register() {
-  // 股票对冲定时扫描已停用，仅跑 BTC/ETH 5m 模拟盘
-  if (
-    process.env.STOCK_SCANNER_ENABLED === "true" &&
-    process.env.NEXT_RUNTIME === "nodejs" &&
-    process.env.NODE_ENV === "production"
-  ) {
-    const { startScheduler } = await import("./lib/scheduler");
-    startScheduler();
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  const { resumeBotEngineIfNeeded } = await import("./lib/bot/engine");
+  resumeBotEngineIfNeeded();
+
+  if (process.env.BOT_ENABLED === "true") {
+    const { ensureChainlinkFeed } = await import("./lib/chainlink-server");
+    void ensureChainlinkFeed();
+    const { startBotEngine, isBotEngineRunning } = await import("./lib/bot/engine");
+    if (!isBotEngineRunning()) {
+      startBotEngine();
+    }
   }
 }

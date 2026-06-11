@@ -1,0 +1,34 @@
+{
+  "assets": ["BTC", "ETH"],
+  "intervalMinutes": 5,
+  "enabled": false,
+  "mode": "paper",
+  "strategy": "combined",
+  "tickIntervalMs": 3000,
+  "requirePriorSettlement": true,
+  "_comment_requirePriorSettlement": "仅 mode=live 时生效；模拟盘 paper 不等待回笼",
+  "pairLockMaxCost": 0.96,
+  "riskControl": {
+    "enabled": true,
+    "dayLossLimitPct": 0.1,
+    "drawdownLimitPct": 0.1,
+    "drawdownMode": "from_peak_equity"
+  },
+  "pairArb": {
+    "enabled": true,
+    "orderAmountUsd": 40,
+    "cooldownSeconds": 30,
+    "maxTradesPerWindow": 2
+  },
+  "directional": {
+    "enabled": true,
+    "entryAmountUsd": 50,
+    "minSecondsRemaining": 120,
+    "maxEntryAsk": 0.65,
+    "minEntryAsk": 0.35,
+    "maxDirectionalAsk": 0.75,
+    "minChainlinkDeltaBps": 8,
+    "hedgeOnReversal": true,
+    "cooldownSeconds": 45
+  }
+}

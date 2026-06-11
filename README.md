@@ -1,182 +1,171 @@
-# Polymarket Stocks Hedging
+# Polymarket Crypto 5 分钟模拟盘 & 自动 Bot
 
-<img width="2978" height="2132" alt="screenshot" src="https://github.com/user-attachments/assets/f5ff88a5-63f0-45d8-8d38-57a5836c202f" />
+基于 [Polymarket](https://polymarket.com) 的 **BTC / ETH 5 分钟涨跌** 模拟交易与自动策略 Bot。盘口来自 Polymarket 真实订单簿，方向信号与结算参考 **Chainlink**（与官方 5 分钟窗口同源）。
 
-## What is this?
+访问路径：`/crypto`（根路径 `/` 会自动跳转）
 
-[Polymarket](https://polymarket.com) offers prediction markets on stock prices, such as "Will GOOGL close above $200 by
-end of February?". These markets let you bet YES or NO on outcomes.
+---
 
-### The opportunity
+## 是什么？
 
-By buying NO shares on price targets significantly above the current stock price, you're essentially betting the stock
-won't reach that price. If you're right, you get $1 per share at expiration. If you're wrong but own the actual stock,
-your stock gains offset the prediction market loss.
+Polymarket 每 5 分钟开一个窗口，问「这 5 分钟 BTC/ETH 涨还是跌」。你可以：
 
-### Why it works
+- **手动模拟买卖** Up / Down，练习窗口节奏与配对成本
+- **开启自动 Bot**，在模拟盘（或配置后的实盘）上跑组合策略：配对套利 + 方向建仓 + 条件对冲
 
-Prediction markets, especially low-liquidity ones, are often inefficient. You can frequently find 20-50%+ APY on
-relatively safe scenarios (e.g., betting a stock won't rise 30% in 2 weeks).
+窗口结束后持仓进入「等待结算」，通常 1–3 分钟出结果；赢的每股兑 $1，输的归零。模拟盘无需钱包，数据保存在本地 `data/` 目录。
 
-### Example
+---
 
-GOOGL is at $180. A market asks "Will GOOGL hit $250 by March?". NO shares cost $0.92. If GOOGL stays below $250, you
-profit $0.08/share (8.7% in a few weeks = high APY). If GOOGL somehow hits $250, you lose $0.92/share but your GOOGL
-stock gained ~39%.
+## 功能
 
-This tool scans Polymarket for these opportunities, ranks them by attractiveness, and optionally lets you execute trades
-directly.
+| 模块 | 说明 |
+| --- | --- |
+| **模拟盘** | 初始 $10,000 USDC，按实时盘口 + 滑点/手续费撮合 |
+| **Chainlink 面板** | 窗口开盘价、现价、差额、走势（Bot 方向信号同源） |
+| **实时配对买价** | Up + Down 扣费后低于配平阈值时标绿，表示双边可锁利 |
+| **自动 Bot** | 支持 BTC + ETH 独立预算；配对套利、方向单、反转对冲 |
+| **策略与封控** | 页面可改配平比、日亏/回撤上限；触发后等本局结束再停 |
+| **登录保护** | 默认需登录才能重置账户等敏感操作 |
 
-## Features
+---
 
-- **Market Scanner**: Scans Polymarket for stock price prediction markets and identifies opportunities based on delta
-  from current price, time to expiry, and APY
-- **Portfolio Dashboard**: View positions, available balance, and portfolio breakdown
-- **Stock Holdings Tracker**: Enter your stock holdings to see hedge scenario calculations when trading
-- **Trade Execution**: Execute trades directly with configurable max price and amount (optional - requires wallet setup)
-- **Position Redemption**: Automatically redeems resolved winning positions
+## 快速开始
 
-## Quick Start (View Only)
+### Docker（推荐）
 
-You can run the scanner without any wallet configuration to just discover opportunities.
+```bash
+git clone https://github.com/flagxxc-dev/polymarket-crypto-paper.git
+cd polymarket-crypto-paper
+cp .env.example .env
+# 编辑 .env：至少修改 TRADE_PASSWORD
+docker compose up -d --build
+```
 
-### 1. Install dependencies
+浏览器打开：**http://localhost:50003/crypto**
+
+> 容器内 Next.js 固定监听 `3000`，宿主机端口由 `APP_PORT`（默认 `50003`）映射，勿在 Docker 里改 `PORT`。
+
+### 本地开发
 
 ```bash
 npm install
+cp .env.example .env
+npm run dev
 ```
 
-### 2. Configure scanner
+开发默认：**http://localhost:50003/crypto**（`.env` 中 `PORT=50003`）
 
-Edit `config/config.json`:
+---
+
+## 环境变量（`.env`）
+
+| 变量 | 说明 | 默认 |
+| --- | --- | --- |
+| `TRADE_USERNAME` / `TRADE_PASSWORD` | 登录凭证 | `admin` / 需修改 |
+| `READONLY_MODE` | 为 `true` 时需登录才能操作 | `true` |
+| `APP_PORT` | Docker 宿主机端口 | `50003` |
+| `PORT` | 非 Docker 时 Node 监听端口 | `50003` |
+| `BOT_ENABLED` | `true` 时容器启动自动跑 Bot（仍受 `config/bot.json` 的 `enabled` 控制） | `false` |
+| `POLYGON_PRIVATE_KEY` | 实盘钱包私钥 | 空 |
+| `POLYMARKET_FUNDER_ADDRESS` | Polymarket 代理钱包地址 | 空 |
+| `ENABLE_LIVE_TRADING` | `true` 且钱包配好后，Bot 可切 `live` 模式 | `false` |
+
+模拟盘 **不需要** 配置钱包。
+
+---
+
+## 配置文件
+
+### `config/bot.json` — Bot 默认策略
+
+主要字段：
 
 ```json
 {
-  "stocks": ["GOOGL", "AMZN"],
-  "opportunities": {
-    "opportunityAPY": 25,
-    "minDisplayAPY": 8,
-    "minDeltaPercent": 7
+  "assets": ["BTC", "ETH"],
+  "intervalMinutes": 5,
+  "enabled": false,
+  "mode": "paper",
+  "strategy": "combined",
+  "pairLockMaxCost": 0.96,
+  "requirePriorSettlement": true,
+  "pairArb": { "enabled": true, "orderAmountUsd": 40 },
+  "directional": { "enabled": true, "entryAmountUsd": 50 },
+  "riskControl": {
+    "enabled": true,
+    "dayLossLimitPct": 0.1,
+    "drawdownLimitPct": 0.1
   }
 }
 ```
 
-| Field             | Description                                            |
-| ----------------- | ------------------------------------------------------ |
-| `stocks`          | Stock tickers to scan for                              |
-| `opportunityAPY`  | Minimum APY to flag as "opportunity" (green highlight) |
-| `minDisplayAPY`   | APY cutoff - hide opportunities below this             |
-| `minDeltaPercent` | Delta (% from current stock price) cutoff              |
+| 字段 | 说明 |
+| --- | --- |
+| `assets` | 参与 Bot 的资产，如 `BTC`、`ETH` |
+| `mode` | `paper` 模拟盘 / `live` 实盘 |
+| `pairLockMaxCost` | 配平比上限（≤1），双边扣费后总成本需低于此值才配对 |
+| `requirePriorSettlement` | **仅 `live` 生效**：上局未结算回笼前不开新仓；模拟盘不等待 |
+| `riskControl` | 总权益 = 现金 + 全部持仓成本；日亏/回撤默认各 10% |
 
-### 3. Run
+页面上 **「策略与封控」** 保存的设置写入 `data/bot-settings.json`，与 `config/bot.json` 合并生效（Docker 中 `config/` 只读，故 UI 不写 config 目录）。
 
-```bash
-npm run dev
-```
+### `config/crypto-paper.json` — 模拟盘参数
 
-Open [http://localhost:3000](http://localhost:3000)
+- 初始余额、Gamma/CLOB API 地址
+- `trading.takerFeeBps`、`buySlippage`、`pairArbMinEdge` 等撮合与费用参数
 
-## Trading Setup (Optional)
+### `data/` — 运行时数据（需可写）
 
-To execute trades, you need to configure your Polymarket wallet.
+| 文件 | 内容 |
+| --- | --- |
+| `paper-trading.json` | 模拟账户、持仓、成交记录 |
+| `bot-state.json` | Bot 运行状态与日志 |
+| `bot-settings.json` | 页面保存的策略/封控覆盖项 |
 
-> ⚠ Please read the [Security](#security) section carefully before enabling trading features
+重置模拟账户会清空 `paper-trading.json`；Bot 状态独立保存在 `bot-state.json`。
 
-### 1. Create `.env` file
+---
 
-```bash
-# Wallet credentials (required for trading)
-POLYGON_PRIVATE_KEY=your_wallet_private_key
-POLYMARKET_FUNDER_ADDRESS=your_polymarket_proxy_wallet_address
+## 页面用法
 
-# Auth password for trading
-TRADE_PASSWORD=your_secure_password
+1. 点击 **「怎么玩」** 查看 5 分钟规则说明
+2. 在 **Chainlink 面板** 看当前窗口涨跌领先情况
+3. 在 **市场列表** 选手动买入 Up/Down（可填金额）
+4. 展开 **Bot 面板**：启动/停止、查看 tick 日志与风控状态
+5. **「策略与封控」**：调整配平比、日亏/回撤；封控触发后需手动 **解除封控**
+6. **「重置模拟账户」**：恢复初始 $10,000（需登录）
 
-# Readonly mode (default: true)
-# When true, requires login to trade or skip opportunities
-READONLY_MODE=true
-```
+---
 
-> **Finding your Polymarket proxy address**: This is the address Polymarket uses to hold your funds. You can find it in
-> your Polymarket account settings or by checking the deposit address.
+## Bot 策略（`combined`）
 
-### 2. Login to trade
+每个 tick（默认 3 秒）对每个资产独立执行：
 
-Click **Login** in the app header and enter your `TRADE_PASSWORD` to enable trading.
+1. **配对套利**：Up + Down 买价扣费后 < 配平比 → 双边同时买入锁利
+2. **方向建仓**：Chainlink 相对窗口开盘价领先足够 bps，且剩余时间/价格满足条件 → 买领先一侧
+3. **反转对冲**：已持方向单且 Chainlink 反转 → 买对侧对冲
 
-## Usage
+封控触发时：先等当前交易结束 → 再等结算回笼 → 停止新开仓，需手动解除。
 
-### Dashboard
+---
 
-- **Positions**: Total value of open positions with count
-- **Balance**: USDC balance available for trading
-- **Opportunities**: Count of opportunities meeting the `opportunityAPY` threshold
-- **Stock Holdings**: Enter shares you own for each stock to enable hedge calculations
+## 安全
 
-### Opportunities Table
+- **私钥**：`POLYGON_PRIVATE_KEY` 拥有钱包完全控制权，勿提交 git、勿泄露。实盘请使用资金有限的专用钱包。
+- **登录密码**：对外暴露 UI 前务必修改 `TRADE_PASSWORD`。
+- **自托管**：建议在自有服务器运行；勿将私钥交给第三方托管环境。
+- **模拟盘数据**：保存在服务器本地 `data/`，请定期备份并限制目录权限。
 
-Click column headers to sort. Columns:
+---
 
-| Column   | Description                           |
-| -------- | ------------------------------------- |
-| Market   | Event title with link to Polymarket   |
-| Strike   | Strike price of the bracket           |
-| Delta    | % difference from current stock price |
-| NO Price | Current best ask price for NO shares  |
-| APY      | Annualized yield if NO wins           |
-| Score    | Opportunity score (0-100)             |
-| Expires  | Days until market resolution          |
+## 生产部署
 
-### Trading
-
-1. Click **Trade** on an opportunity
-2. Adjust **Max Price** (highest price you'll pay)
-3. Adjust **Max Amount** (budget limit)
-4. Review shares, cost, APY, and profit preview
-5. If you've entered stock holdings, see hedge scenarios showing:
-   - Bet profit if stock stays below strike
-   - Hedge cost % if stock rises above strike
-6. Click **Execute**
-
-### Skipping
-
-Click **Skip** to hide an opportunity:
-
-- **Snooze (24h)**: Reappears after 24 hours
-- **Dismiss Forever**: Permanently hidden
-
-## Scoring Formula
-
-```
-Score = APY Score (30 pts max) + Delta Score (70 pts max)
-
-APY Score = min(APY, 200) / 200 * 30
-Delta Score = min(|delta|, 50) / 50 * 70
-```
-
-Higher delta = safer bet (stock less likely to reach strike price).
-
-## Security
-
-- **Private Key**: Your `POLYGON_PRIVATE_KEY` grants full control over your wallet. Never share it, commit it to git, or
-  expose it publicly. Use a dedicated wallet with limited funds.
-- **Trade Password**: If exposing the UI on the internet, use a strong `TRADE_PASSWORD`. Anyone with access can execute
-  trades on your behalf.
-- **Readonly Mode**: Enabled by default (`READONLY_MODE=true`). Requires login to skip opportunities, preventing
-  visitors from modifying your data.
-- **Stock Holdings**: Stored locally in your browser (localStorage). Never sent to any server.
-- **Self-hosted**: This app is designed to run on your own infrastructure. Don't use third-party hosted versions with
-  your private key.
-
-## Production Deployment
-
-### Using Docker
+### Docker
 
 ```bash
 docker compose up -d --build
 ```
-
-The app runs on port 50003 by default.
 
 ### Linux 服务器（无 Docker）
 
@@ -186,111 +175,65 @@ The app runs on port 50003 by default.
 git clone https://github.com/flagxxc-dev/polymarket-crypto-paper.git
 cd polymarket-crypto-paper
 cp .env.example .env
-# 编辑 .env，修改 TRADE_USERNAME / TRADE_PASSWORD
 chmod +x scripts/deploy-server.sh
 ./scripts/deploy-server.sh
 ```
 
-脚本会执行 `npm ci` → `npm run build`，若已安装 PM2 则自动守护启动；否则按提示手动运行 `PORT=50003 npm start`。
-
 访问：`http://服务器IP:50003/crypto`
 
-**手动启动（PM2）：**
+**PM2 手动启动：**
 
 ```bash
-npm ci
-npm run build
+npm ci && npm run build
 npm install -g pm2
 pm2 start ecosystem.config.cjs
-pm2 save
-pm2 startup
+pm2 save && pm2 startup
 ```
 
-**手动启动（systemd）：**
+**systemd：** 参考 `deploy/polymarket-crypto-paper.service`
 
-```bash
-# 将项目放到 /opt/polymarket-crypto-paper，修改 deploy/polymarket-crypto-paper.service 中的路径和用户
-sudo cp deploy/polymarket-crypto-paper.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now polymarket-crypto-paper
-```
-
-**Nginx 反代（可选）：** 参考 `deploy/nginx.conf.example`，将域名转发到 `127.0.0.1:50003`。
+**Nginx 反代：** 参考 `deploy/nginx.conf.example`，转发到 `127.0.0.1:50003`
 
 **注意：**
-- 模拟盘数据保存在 `data/paper-trading.json`，请确保该目录可写
-- 对外暴露前务必修改默认登录密码
-- 防火墙需放行 `PORT`（默认 50003）
 
-### VPN Setup (Optional)
+- 确保 `data/` 可写
+- 防火墙放行 `APP_PORT`（默认 50003）
+- 修改默认登录密码后再对外暴露
 
-Required to place orders if your server is in a country where Polymarket is restricted (e.g., France).\
-If you don't need it, remove the vpn service from the `docker-compose.yml` file & the references to it in the app
-service.
+---
 
-#### Step 1: Get OpenVPN Configuration
+## VPN（可选，实盘下单）
 
-Using Proton VPN as an example (works with other providers too):
+若服务器所在地区无法直连 Polymarket，可使用 `docker-compose.vpn.yml` 或自行配置 OpenVPN。
 
-1. Log in to [Proton VPN Dashboard](https://account.protonvpn.com/)
-2. Navigate to **Downloads** > **OpenVPN configuration files**
-3. Select:
-   - **Platform**: Linux
-   - **Protocol**: UDP (recommended) or TCP
-   - **Connection**: Choose a specific server (e.g., Ireland)
-4. Download the `.ovpn` file
-5. Get your **OpenVPN Credentials** from Account section (different from login password)
+1. 从 VPN 提供商下载 `.ovpn` 配置，放到 `vpn/vpn.ovpn`
+2. 创建 `vpn/vpn.auth`（第一行用户名，第二行密码）
+3. 在 `vpn.ovpn` 中将 `auth-user-pass` 改为 `auth-user-pass /vpn/vpn.auth`
+4. 使用带 VPN 的 compose 文件启动
 
-#### Step 2: Prepare VPN Files
+不需要 VPN 时，使用默认 `docker-compose.yml` 即可。
+
+---
+
+## 开发
 
 ```bash
-mkdir -p vpn
-mv ~/Downloads/your-server.ovpn vpn/vpn.ovpn
+npm run dev      # 开发服务器
+npm run build    # 生产构建
+npm test         # 单元测试（trade-client 预览计算等）
+npm run lint     # ESLint
 ```
 
-#### Step 3: Create Authentication File
+---
 
-Create `vpn/vpn.auth` with your OpenVPN credentials:
+## 项目结构（简要）
 
 ```
-your-openvpn-username
-your-openvpn-password
+app/crypto/          # 主页面
+app/api/bot/         # Bot 控制与配置 API
+app/api/crypto/      # 市场、模拟盘、现货 API
+lib/bot/             # 引擎、策略、风控、执行器
+lib/chainlink-server.ts  # Polymarket Chainlink WS 信号
+config/bot.json      # Bot 默认配置（只读挂载）
+data/                # 运行时持久化（可写挂载）
 ```
-
-> One credential per line (username on line 1, password on line 2).
-
-#### Step 4: Edit VPN Configuration
-
-Open `vpn/vpn.ovpn` and:
-
-1. Find `auth-user-pass` and change it to:
-
-   ```
-   auth-user-pass /vpn/vpn.auth
-   ```
-
-2. Comment out `update-resolv-conf` references if present:
-   ```
-   # script-security 2
-   # up /etc/openvpn/update-resolv-conf
-   # down /etc/openvpn/update-resolv-conf
-   ```
-
-#### Step 5: Deploy
-
-The `docker-compose.yml` includes VPN configuration. Just run:
-
-```bash
-docker compose up -d
-```
-
-The app traffic will route through the VPN while the port remains accessible on your host.
-
-<div align="center">
-  <h2>Made with ❤️ by</h2>
-  <a href="https://github.com/RezaRahemtola">
-    <img src="https://github.com/RezaRahemtola.png?size=85" width=85/>
-    <br>
-    <span>Reza Rahemtola</span>
-  </a>
-</div>

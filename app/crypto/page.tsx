@@ -1,7 +1,11 @@
 "use client";
 
 import LoginModal from "@/components/LoginModal";
+import BotPanel from "@/components/BotPanel";
+import BotSettingsDialog from "@/components/BotSettingsDialog";
+import HowToPlayDialog from "@/components/HowToPlayDialog";
 import CryptoSpotPanel from "@/components/CryptoSpotPanel";
+import PairCostSection, { LivePairCostHint } from "@/components/PairCostSection";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -101,6 +105,19 @@ export default function CryptoPaperPage() {
     retry: 2,
   });
 
+  const { data: botData } = useQuery<{
+    config?: { pairLockMaxCost?: number };
+  }>({
+    queryKey: ["botStatus"],
+    queryFn: async () => {
+      const res = await fetch("/api/bot", { cache: "no-store" });
+      return res.json();
+    },
+    refetchInterval: 5000,
+  });
+
+  const pairLockMaxCost = botData?.config?.pairLockMaxCost;
+
   const { data: portfolio } = useQuery<PaperPortfolioView>({
     queryKey: ["cryptoPaper"],
     queryFn: async () => {
@@ -121,6 +138,7 @@ export default function CryptoPaperPage() {
   );
 
   const markets = marketsData?.markets ?? [];
+  const pairSummaries = portfolio?.pairSummaries ?? [];
   const priceSyncedAt = marketsData?.fetchedAt ?? marketsUpdatedAt;
 
   const resetMutation = useMutation({
@@ -209,47 +227,27 @@ export default function CryptoPaperPage() {
             真实 Polymarket 盘口 · 本地虚拟 USDC · 纯模拟不下真单
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <HowToPlayDialog />
+          <BotSettingsDialog />
           {auth?.authenticated ? (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
             >
               重置模拟账户
             </Button>
           ) : (
-            <Button variant="outline" onClick={() => setShowLoginModal(true)}>
+            <Button variant="outline" size="sm" onClick={() => setShowLoginModal(true)}>
               登录
             </Button>
           )}
         </div>
       </div>
 
-      <Card className="p-4 mb-6 space-y-3 text-sm leading-relaxed">
-        <p className="font-medium">怎么玩？（5 分钟看懂）</p>
-        <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-          <li>
-            Polymarket 每 5 分钟开一个 BTC/ETH 窗口，问：「这 5 分钟涨还是跌？」
-          </li>
-          <li>
-            买 <strong className="text-foreground">Up（涨）</strong> 或{" "}
-            <strong className="text-foreground">Down（跌）</strong>
-            ，价格来自官网真实订单簿（例如 $0.45 = 花 45¢ 赌 1 美元结果）
-          </li>
-          <li>
-            窗口结束后持仓会进入<strong className="text-foreground">「等待结算」</strong>
-            状态（Polymarket 官方通常 1–3 分钟出结果），赢的每股兑 $1，输的归零
-          </li>
-          <li>
-            下方展示 <strong className="text-foreground">Chainlink 开盘价 / 现价 / 差额 / 走势</strong>
-            （与 Polymarket 官方结算同源），帮助判断当前涨还是跌领先
-          </li>
-        </ol>
-        <p className="text-xs text-yellow-500/90">
-          提示：5 分钟盘波动快，先用小金额（如 $20–50）练手。本局结束后无需点「卖出」，等自动结算即可。买入时会按实时盘口 + 2¢ 滑点缓冲撮合。
-        </p>
-      </Card>
+      <BotPanel />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         <Card className="p-3">
@@ -378,6 +376,11 @@ export default function CryptoPaperPage() {
                   />
                 </div>
 
+                <LivePairCostHint
+                  market={market}
+                  pairLockMaxCost={pairLockMaxCost}
+                />
+
                 <div className="grid grid-cols-2 gap-2">
                   {market.outcomes.map((o) => (
                     <div
@@ -430,6 +433,12 @@ export default function CryptoPaperPage() {
           </div>
         )}
       </Card>
+
+      <PairCostSection
+        summaries={pairSummaries}
+        markets={markets}
+        pairLockMaxCost={pairLockMaxCost}
+      />
 
       {pendingSettlement.length > 0 && (
         <Card className="p-4 mb-6 border-yellow-500/30 bg-yellow-500/5">

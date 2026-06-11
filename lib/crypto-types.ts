@@ -63,10 +63,43 @@ export interface PaperAccount {
   updatedAt: number;
 }
 
+export interface PairCostSummary {
+  slug: string;
+  asset: CryptoAsset;
+  intervalMinutes: CryptoInterval;
+  upShares: number;
+  downShares: number;
+  upAvgPrice: number;
+  downAvgPrice: number;
+  pairedShares: number;
+  pairCost: number | null;
+  pairCostAfterFees: number | null;
+  pairedSpend: number;
+  lockedProfit: number;
+  lockedProfitAfterFees: number;
+  isLockedProfit: boolean;
+  isLockedProfitAfterFees: boolean;
+  unpairedUpShares: number;
+  unpairedDownShares: number;
+}
+
+export interface LivePairQuote {
+  upAsk: number;
+  downAsk: number;
+  pairCost: number;
+  pairCostAfterFees: number;
+  edgePerShare: number;
+  edgeAfterFees: number;
+  isLockedProfit: boolean;
+  isLockedProfitAfterFees: boolean;
+  maxPairCostForLock: number;
+}
+
 export interface PaperPortfolioView {
   account: PaperAccount;
   activePositions: PaperPosition[];
   pendingSettlement: PaperPosition[];
+  pairSummaries: PairCostSummary[];
   positionsValue: number;
   totalEquity: number;
   unrealizedPnl: number;

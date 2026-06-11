@@ -1,0 +1,25 @@
+{
+  "asset": "BTC",
+  "intervalMinutes": 5,
+  "enabled": false,
+  "mode": "paper",
+  "strategy": "combined",
+  "tickIntervalMs": 2000,
+  "pairArb": {
+    "enabled": true,
+    "orderAmountUsd": 40,
+    "cooldownSeconds": 30,
+    "maxTradesPerWindow": 2
+  },
+  "directional": {
+    "enabled": true,
+    "entryAmountUsd": 50,
+    "minSecondsRemaining": 120,
+    "maxEntryAsk": 0.65,
+    "minEntryAsk": 0.35,
+    "maxDirectionalAsk": 0.75,
+    "minChainlinkDeltaBps": 8,
+    "hedgeOnReversal": true,
+    "cooldownSeconds": 45
+  }
+}

@@ -16,6 +16,7 @@ services:
     env_file:
       - .env
     environment:
+      PORT: "3000"
       HTTP_PROXY: ""
       HTTPS_PROXY: ""
       http_proxy: ""
