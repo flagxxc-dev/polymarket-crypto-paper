@@ -46,6 +46,14 @@ export async function runPairArbStrategy(
     return;
   }
 
+  const slugPositions = portfolio.activePositions.filter(
+    (p) => p.slug === market.slug,
+  );
+  // 同一窗口已有持仓时不再叠加配对，避免多轮等额买入产生大量未配对敞口
+  if (slugPositions.length > 0) {
+    return;
+  }
+
   const cooldownMs = config.pairArb.cooldownSeconds * 1000;
   if (Date.now() - assetState.lastPairArbAt < cooldownMs) return;
 

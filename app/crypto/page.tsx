@@ -249,7 +249,7 @@ export default function CryptoPaperPage() {
 
       <BotPanel />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         <Card className="p-3">
           <p className="text-xs text-muted-foreground">模拟余额</p>
           <p className="text-xl font-mono font-semibold">
@@ -266,6 +266,15 @@ export default function CryptoPaperPage() {
           <p className="text-xs text-muted-foreground">总权益</p>
           <p className="text-xl font-mono font-semibold">
             ${(portfolio?.totalEquity ?? 0).toFixed(2)}
+          </p>
+        </Card>
+        <Card className="p-3">
+          <p className="text-xs text-muted-foreground">已实现盈亏</p>
+          <p
+            className={`text-xl font-mono font-semibold ${(portfolio?.realizedPnl ?? 0) >= 0 ? "text-green-500" : "text-red-500"}`}
+          >
+            {(portfolio?.realizedPnl ?? 0) >= 0 ? "+" : ""}$
+            {(portfolio?.realizedPnl ?? 0).toFixed(2)}
           </p>
         </Card>
         <Card className="p-3">
@@ -531,8 +540,11 @@ export default function CryptoPaperPage() {
 
       {history.length > 0 && (
         <Card className="p-4 overflow-x-auto">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
+          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
             模拟成交记录
+          </p>
+          <p className="text-xs text-muted-foreground mb-3">
+            结算行「金额」为兑付额（输方 $0）；真实盈亏见「盈亏」列。同一窗口 Up/Down 各一行，需合并看净值。
           </p>
           <Table>
             <TableHeader>
@@ -543,6 +555,7 @@ export default function CryptoPaperPage() {
                 <TableHead>方向</TableHead>
                 <TableHead className="text-right">股数</TableHead>
                 <TableHead className="text-right">金额</TableHead>
+                <TableHead className="text-right">盈亏</TableHead>
                 <TableHead>说明</TableHead>
               </TableRow>
             </TableHeader>
@@ -568,6 +581,19 @@ export default function CryptoPaperPage() {
                   </TableCell>
                   <TableCell className="text-right font-mono">
                     ${h.amount.toFixed(2)}
+                  </TableCell>
+                  <TableCell
+                    className={`text-right font-mono ${
+                      h.pnl == null
+                        ? "text-muted-foreground"
+                        : h.pnl >= 0
+                          ? "text-green-500"
+                          : "text-red-500"
+                    }`}
+                  >
+                    {h.pnl == null
+                      ? "—"
+                      : `${h.pnl >= 0 ? "+" : ""}$${h.pnl.toFixed(2)}`}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[280px]">
                     {h.note}
